@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= post.title %> | <%= siteName %></title>
+  <meta name="description" content="<%= post.description %>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="cyber-theme">
+  <!-- Scanline Overlay -->
+  <div class="scanlines"></div>
+
+  <header class="blog-header terminal-panel">
+    <div class="header-container">
+      <div class="terminal-header">
+        <span class="btn-dot close"></span>
+        <span class="btn-dot shrink"></span>
+        <span class="btn-dot expand"></span>
+        <span class="terminal-title">zenith_press_kernel.sys</span>
+      </div>
+      <div class="terminal-body">
+        <p class="logo"><a href="/index.html">>_ <%= siteName %></a></p>
+        <p class="subtitle">System Status: ONLINE | <%= siteSubtitle %></p>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-layout single-post-layout">
+    <main class="post-detail">
+      <nav class="back-nav">
+        <a href="/index.html" class="back-link">[ BACK_TO_DIRECTORY ]</a>
+      </nav>
+
+      <article class="full-post terminal-panel">
+        <div class="terminal-header">
+          <span class="terminal-file-icon"></span>
+          <span class="terminal-title">viewer://<%= post.slug %>.md</span>
+        </div>
+        <div class="terminal-body">
+          <div class="post-meta">
+            <span class="post-category">[<%= post.category %>]</span>
+            <span class="meta-divider">::</span>
+            <span class="post-date"><%= post.date %></span>
+          </div>
+          
+          <h1 class="post-title">> <%= post.title %></h1>
+          <p class="post-description">// <%= post.description %></p>
+
+          <% if (post.coverImage) { %>
+            <div class="post-cover-container">
+              <img src="<%= post.coverImage %>" alt="<%= post.title %>" class="post-detail-cover">
+            </div>
+          <% } %>
+
+          <div class="post-content markdown-body">
+            <%- post.content %>
+          </div>
+        </div>
+      </article>
+    </main>
+
+    <aside class="blog-sidebar">
+      <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
+        <div class="widget widget-<%= widget.type %> terminal-panel" id="widget-<%= widget.id %>">
+          <div class="terminal-header">
+            <span class="terminal-title">widget://<%= widget.id %>.conf</span>
+          </div>
+          <div class="terminal-body">
+            <h3 class="widget-title">>_ <%= widget.name %></h3>
+            
+            <% if (widget.type === 'bio') { %>
+              <div class="bio-content">
+                <% if (authorAvatar) { %>
+                  <img src="<%= authorAvatar %>" alt="<%= authorName %>" class="bio-avatar">
+                <% } %>
+                <h4 class="bio-name">NAME: <%= authorName %></h4>
+                <p class="bio-text"><%= authorBio %></p>
+                <div class="bio-socials">
+                  <% if (socialLinks.github) { %><a href="<%= socialLinks.github %>" target="_blank" rel="noopener">[GITHUB]</a><% } %>
+                  <% if (socialLinks.twitter) { %><a href="<%= socialLinks.twitter %>" target="_blank" rel="noopener">[TWITTER]</a><% } %>
+                  <% if (socialLinks.linkedin) { %><a href="<%= socialLinks.linkedin %>" target="_blank" rel="noopener">[LINKEDIN]</a><% } %>
+                  <% if (socialLinks.instagram) { %><a href="<%= socialLinks.instagram %>" target="_blank" rel="noopener">[INSTAGRAM]</a><% } %>
+                </div>
+              </div>
+            <% } else if (widget.type === 'recent-posts') { %>
+              <ul class="recent-posts-list">
+                <% posts.slice(0, 5).forEach(p => { %>
+                  <li>
+                    <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link">-> <%= p.title %></a>
+                    <span class="recent-post-date">[<%= p.date %>]</span>
+                  </li>
+                <% }) %>
+              </ul>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </aside>
+  </div>
+
+  <footer class="blog-footer terminal-panel">
+    <div class="terminal-header">
+      <span class="terminal-title">system://shutdown.log</span>
+    </div>
+    <div class="terminal-body">
+      <div class="footer-container">
+        <div class="footer-widgets">
+          <% widgets.filter(w => w.enabled && w.position === 'footer').forEach(widget => { %>
+            <div class="widget widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+              <h4 class="widget-title">>_ <%= widget.name %></h4>
+              <% if (widget.type === 'newsletter') { %>
+                <div class="newsletter-content">
+                  <p>CONNECT TO SECTOR NEWSLETTER STREAM.</p>
+                  <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('CONNECTION CONFIRMED: ' + email); this.reset();">
+                    <input type="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
+                    <button type="submit">[ INJECT ]</button>
+                  </form>
+                </div>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= siteName.toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
+          <p class="credit">COMPILED_BY: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

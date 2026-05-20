@@ -1,0 +1,49 @@
+{
+  "siteName": "Zenith Press",
+  "siteSubtitle": "Explorations in Design, Art & Technology",
+  "authorName": "Aara Dev",
+  "authorBio": "Designer, coder, and creative explorer. Crafting premium web experiences and writing about modern typography, graphics, and animations.",
+  "authorAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+  "socialLinks": {
+    "github": "https://github.com/zenith-press",
+    "twitter": "https://twitter.com/zenith_press",
+    "linkedin": "https://linkedin.com",
+    "instagram": "https://instagram.com"
+  },
+  "selectedTemplate": "nordic-minimal",
+  "widgets": [
+    {
+      "id": "bio",
+      "name": "About Me",
+      "type": "bio",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 1
+    },
+    {
+      "id": "recent-posts",
+      "name": "Recent Musings",
+      "type": "recent-posts",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 2
+    },
+    {
+      "id": "tag-cloud",
+      "name": "Topics",
+      "type": "tag-cloud",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 3
+    },
+    {
+      "id": "newsletter",
+      "name": "Inner Circle Newsletter",
+      "type": "newsletter",
+      "enabled": true,
+      "position": "footer",
+      "order": 4,
+      "placeholderText": "Enter your email for weekly updates..."
+    }
+  ]
+}
