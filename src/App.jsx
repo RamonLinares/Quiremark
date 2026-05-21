@@ -1040,6 +1040,70 @@ export default function App() {
                 </div>
 
                 <div className="brand-settings-card" style={{ marginTop: '30px' }}>
+                  <h3>SEO & AI Discovery</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '18px' }}>
+                    Configure canonical URLs, social previews, sitemap output, and LLM-readable discovery files.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="meta-input-group">
+                      <label>Public Site URL</label>
+                      <input
+                        type="url"
+                        className="meta-field"
+                        value={settings.siteUrl || ''}
+                        onChange={(e) => setSettings({ ...settings, siteUrl: e.target.value })}
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                    <div className="meta-input-group">
+                      <label>Default Share Image</label>
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={settings.seoImage || ''}
+                        onChange={(e) => setSettings({ ...settings, seoImage: e.target.value })}
+                        placeholder="/content/images/social-card.jpg"
+                      />
+                    </div>
+                  </div>
+                  <div className="meta-input-group">
+                    <label>SEO Description</label>
+                    <textarea
+                      className="meta-field"
+                      style={{ height: '82px', resize: 'vertical' }}
+                      value={settings.seoDescription || ''}
+                      onChange={(e) => setSettings({ ...settings, seoDescription: e.target.value })}
+                      placeholder="Overrides the homepage meta description. Post descriptions still come from post metadata."
+                    />
+                  </div>
+                  <div className="meta-input-group">
+                    <label>SEO Keywords</label>
+                    <input
+                      type="text"
+                      className="meta-field"
+                      value={settings.seoKeywords || ''}
+                      onChange={(e) => setSettings({ ...settings, seoKeywords: e.target.value })}
+                      placeholder="design, development, static blog"
+                    />
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={settings.allowIndexing !== false}
+                      onChange={(e) => setSettings({ ...settings, allowIndexing: e.target.checked })}
+                    />
+                    Allow search engines and LLM crawlers to index this site
+                  </label>
+                  <button
+                    className="solid-btn"
+                    style={{ alignSelf: 'flex-start', marginTop: '18px' }}
+                    onClick={() => saveSettings(settings)}
+                  >
+                    💾 Save SEO Settings
+                  </button>
+                </div>
+
+                <div className="brand-settings-card" style={{ marginTop: '30px' }}>
                   <h3>Theme Copy Overrides</h3>
                   <p style={{ color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '18px' }}>
                     Leave fields blank to keep the selected theme defaults.

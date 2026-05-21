@@ -6,62 +6,6 @@
 
   if (!input || !results) return;
 
-  const style = document.createElement('style');
-  style.textContent = `
-    .search-panel {
-      margin: 0 0 24px;
-      padding: 18px;
-      border: 1px solid currentColor;
-      background: rgba(255, 255, 255, 0.04);
-    }
-    .search-label {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      opacity: 0.72;
-    }
-    .search-input {
-      width: 100%;
-      padding: 12px 14px;
-      border: 1px solid currentColor;
-      border-radius: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-    }
-    .search-input:focus {
-      outline: 2px solid currentColor;
-      outline-offset: 2px;
-    }
-    .search-results {
-      display: grid;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .search-result-link {
-      display: block;
-      color: inherit;
-      text-decoration: none;
-      border: 1px solid currentColor;
-      padding: 10px 12px;
-      background: rgba(255, 255, 255, 0.04);
-    }
-    .search-result-link:hover {
-      text-decoration: underline;
-    }
-    .search-result-meta,
-    .search-empty {
-      display: block;
-      margin-top: 4px;
-      font-size: 0.78rem;
-      opacity: 0.68;
-    }
-  `;
-  document.head.appendChild(style);
-
   const normalize = (value) => String(value || '').toLowerCase();
   const matchesPost = (post, query) => normalize([
     post.title,
@@ -88,18 +32,39 @@
   };
 
   let searchIndex = [];
-  fetch('/search.json')
-    .then((res) => (res.ok ? res.json() : []))
-    .then((data) => {
-      searchIndex = Array.isArray(data) ? data : [];
-    })
-    .catch(() => {
-      searchIndex = [];
-    });
+  let searchIndexPromise = null;
 
-  const render = () => {
+  const loadSearchIndex = () => {
+    if (!searchIndexPromise) {
+      searchIndexPromise = fetch('/search.json')
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => {
+          searchIndex = Array.isArray(data) ? data : [];
+          return searchIndex;
+        })
+        .catch(() => {
+          searchIndex = [];
+          return searchIndex;
+        });
+    }
+    return searchIndexPromise;
+  };
+
+  const setQueryParam = (query) => {
+    if (!window.history?.replaceState) return;
+    const url = new URL(window.location.href);
+    if (query) {
+      url.searchParams.set('q', query);
+    } else {
+      url.searchParams.delete('q');
+    }
+    window.history.replaceState({}, '', url);
+  };
+
+  const render = async () => {
     const query = normalize(input.value).trim();
     results.replaceChildren();
+    setQueryParam(query);
 
     if (!query) {
       cards.forEach((card) => {
@@ -112,7 +77,10 @@
       card.hidden = !normalize(card.dataset.searchText).includes(query);
     });
 
-    const matches = searchIndex.filter((post) => matchesPost(post, query)).slice(0, 6);
+    const index = searchIndex.length ? searchIndex : await loadSearchIndex();
+    if (query !== normalize(input.value).trim()) return;
+
+    const matches = index.filter((post) => matchesPost(post, query)).slice(0, 6);
     if (matches.length === 0) {
       const empty = document.createElement('span');
       empty.className = 'search-empty';
@@ -126,5 +94,14 @@
     });
   };
 
-  input.addEventListener('input', render);
+  const initialQuery = new URLSearchParams(window.location.search).get('q') || '';
+  if (initialQuery) {
+    input.value = initialQuery;
+    render();
+  }
+
+  input.addEventListener('focus', loadSearchIndex, { once: true });
+  input.addEventListener('input', () => {
+    render();
+  });
 })();

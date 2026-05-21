@@ -45,5 +45,6 @@
       "order": 4,
       "placeholderText": "Enter your email for weekly updates..."
     }
-  ]
+  ],
+  "locale": "en"
 }

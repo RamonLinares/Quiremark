@@ -386,6 +386,7 @@ const TEMPLATES_DIR = path.join(__dirname, 'templates');
 const OUT_DIR = path.join(__dirname, 'out');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
+const COMMON_SEARCH_STYLE = path.join(TEMPLATES_DIR, 'search.css');
 const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
 // Ensure necessary directories exist on startup
@@ -428,6 +429,11 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     authorName: "Aara Dev",
     authorBio: "Designer and coder.",
     authorAvatar: "",
+    siteUrl: process.env.PUBLIC_SITE_URL || "",
+    seoDescription: "",
+    seoKeywords: "",
+    seoImage: "",
+    allowIndexing: true,
     socialLinks: { github: "", twitter: "", linkedin: "", instagram: "" },
     selectedTemplate: "nordic-minimal",
     locale: DEFAULT_LOCALE,
@@ -460,6 +466,10 @@ function calculateReadingTime(text) {
   const wordsPerMinute = 200;
   const numberOfWords = String(text || '').trim().split(/\s+/).filter(Boolean).length;
   return Math.ceil(numberOfWords / wordsPerMinute);
+}
+
+function countWords(text) {
+  return String(text || '').trim().split(/\s+/).filter(Boolean).length;
 }
 
 function sanitizeHtml(html) {
@@ -533,6 +543,32 @@ function normalizeActionUrl(actionUrl) {
   } catch {
     return '';
   }
+}
+
+function normalizePublicUrl(value, options = {}) {
+  const urlValue = String(value || '').trim();
+  if (!urlValue) return '';
+  if (options.allowRelative && urlValue.startsWith('/') && !urlValue.startsWith('//')) {
+    return urlValue.replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 500);
+  }
+  try {
+    const url = new URL(urlValue);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    url.hash = '';
+    if (options.dropSearch !== false) url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function normalizeKeywordList(value) {
+  const keywords = Array.isArray(value) ? value : String(value || '').split(',');
+  return keywords
+    .map(keyword => String(keyword).trim())
+    .filter(Boolean)
+    .slice(0, 24)
+    .join(', ');
 }
 
 function hasDynamicVariable(value) {
@@ -633,6 +669,409 @@ function formatDateForLocale(value, locale, options = { dateStyle: 'medium' }) {
   return new Intl.DateTimeFormat(normalizeLocale(locale), options).format(date);
 }
 
+function toIsoDate(value) {
+  const date = parseDateValue(value);
+  if (!date) return '';
+  return date.toISOString();
+}
+
+function toIsoDateOnly(value) {
+  const iso = toIsoDate(value);
+  return iso ? iso.split('T')[0] : '';
+}
+
+function htmlToText(html) {
+  const fragment = window.document.createElement('div');
+  fragment.innerHTML = String(html || '');
+  return (fragment.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(value, maxLength = 160) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1).replace(/\s+\S*$/, '')}…`;
+}
+
+function getBasePath(settings) {
+  if (!settings.siteUrl) return '';
+  try {
+    const url = new URL(settings.siteUrl);
+    return url.pathname.replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+function sitePath(settings, pathname = '/') {
+  const rawPath = String(pathname || '/');
+  const relative = new URL(rawPath, 'https://local.test');
+  const basePath = getBasePath(settings);
+  const cleanPath = relative.pathname === '/' ? '/' : `/${relative.pathname.replace(/^\/+/, '')}`;
+  const joinedPath = `${basePath}${cleanPath}`.replace(/\/{2,}/g, '/');
+  return `${joinedPath || '/'}${relative.search}${relative.hash}`;
+}
+
+function absoluteUrl(settings, pathname = '/') {
+  if (!settings.siteUrl) return '';
+  try {
+    const base = new URL(settings.siteUrl);
+    base.pathname = sitePath(settings, pathname).split(/[?#]/)[0];
+    const relative = new URL(String(pathname || '/'), 'https://local.test');
+    base.search = relative.search;
+    base.hash = relative.hash;
+    return base.toString();
+  } catch {
+    return '';
+  }
+}
+
+function assetUrl(settings, urlValue) {
+  const value = String(urlValue || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  return absoluteUrl(settings, value) || value;
+}
+
+function pagePathForPost(post) {
+  return post?.slug ? `/posts/${post.slug}/` : '/';
+}
+
+function markdownPathForPost(post) {
+  return post?.slug ? `/posts/${post.slug}/index.html.md` : '/index.html.md';
+}
+
+function ogLocale(locale) {
+  const map = {
+    en: 'en_US',
+    es: 'es_ES',
+    fr: 'fr_FR',
+    de: 'de_DE',
+    pt: 'pt_PT'
+  };
+  return map[normalizeLocale(locale)] || 'en_US';
+}
+
+function jsonLdScript(data) {
+  return JSON.stringify(data, null, 2).replace(/</g, '\\u003c');
+}
+
+function mergeKeywords(...sources) {
+  const seen = new Set();
+  const keywords = [];
+  sources.flatMap(source => normalizeTags(source)).forEach(keyword => {
+    const normalized = keyword.toLowerCase();
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      keywords.push(keyword);
+    }
+  });
+  return keywords;
+}
+
+function createPersonSchema(settings) {
+  const sameAs = [
+    settings.socialLinks.github,
+    settings.socialLinks.twitter,
+    settings.socialLinks.linkedin,
+    settings.socialLinks.instagram
+  ].filter(Boolean);
+  return {
+    '@type': 'Person',
+    '@id': absoluteUrl(settings, '/#author') || '#author',
+    name: settings.authorName || settings.siteName,
+    ...(settings.authorBio ? { description: settings.authorBio } : {}),
+    ...(settings.authorAvatar ? { image: assetUrl(settings, settings.authorAvatar) } : {}),
+    ...(sameAs.length ? { sameAs } : {})
+  };
+}
+
+function createPublisherSchema(settings) {
+  return {
+    '@type': 'Organization',
+    '@id': absoluteUrl(settings, '/#publisher') || '#publisher',
+    name: settings.siteName,
+    url: absoluteUrl(settings, '/') || settings.siteUrl || '/',
+    ...(settings.seoImage || settings.authorAvatar ? {
+      logo: {
+        '@type': 'ImageObject',
+        url: assetUrl(settings, settings.seoImage || settings.authorAvatar)
+      }
+    } : {})
+  };
+}
+
+function createHomePageMeta(settings, homepageText, posts) {
+  const description = truncateText(settings.seoDescription || homepageText.siteSubtitle || homepageText.authorBio, 180);
+  const titleSuffix = homepageText.siteSubtitle ? homepageText.siteSubtitle : translateText('Home', settings.locale);
+  const title = `${homepageText.siteName} | ${titleSuffix}`;
+  const url = absoluteUrl(settings, '/');
+  const image = assetUrl(settings, settings.seoImage || settings.authorAvatar);
+  const keywords = mergeKeywords(settings.seoKeywords, posts.flatMap(post => [post.category, ...(post.tags || [])]));
+  const graph = [
+    createPublisherSchema(settings),
+    createPersonSchema(settings),
+    {
+      '@type': 'WebSite',
+      '@id': absoluteUrl(settings, '/#website') || '#website',
+      name: homepageText.siteName,
+      url: url || '/',
+      inLanguage: settings.locale,
+      description,
+      publisher: { '@id': absoluteUrl(settings, '/#publisher') || '#publisher' },
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: `${url || '/'}?q={search_term_string}`,
+        'query-input': 'required name=search_term_string'
+      }
+    },
+    {
+      '@type': 'Blog',
+      '@id': absoluteUrl(settings, '/#blog') || '#blog',
+      name: homepageText.siteName,
+      url: url || '/',
+      inLanguage: settings.locale,
+      description,
+      author: { '@id': absoluteUrl(settings, '/#author') || '#author' },
+      publisher: { '@id': absoluteUrl(settings, '/#publisher') || '#publisher' },
+      blogPost: posts.map(post => ({
+        '@type': 'BlogPosting',
+        '@id': `${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}#blogposting`,
+        headline: post.title,
+        url: absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post),
+        datePublished: toIsoDate(post.date),
+        dateModified: post.modifiedAt || toIsoDate(post.date)
+      }))
+    }
+  ];
+
+  return {
+    type: 'website',
+    title,
+    description,
+    canonicalUrl: url,
+    markdownUrl: absoluteUrl(settings, '/index.html.md') || '/index.html.md',
+    image,
+    keywords,
+    robots: settings.allowIndexing ? 'index, follow, max-image-preview:large' : 'noindex, nofollow',
+    locale: ogLocale(settings.locale),
+    jsonLd: { '@context': 'https://schema.org', '@graph': graph }
+  };
+}
+
+function createPostPageMeta(settings, homepageText, post) {
+  const description = truncateText(post.description || post.plainText, 180);
+  const url = absoluteUrl(settings, pagePathForPost(post));
+  const image = assetUrl(settings, post.coverImage || settings.seoImage || settings.authorAvatar);
+  const keywords = mergeKeywords(settings.seoKeywords, post.category, post.tags);
+  const authorId = absoluteUrl(settings, '/#author') || '#author';
+  const publisherId = absoluteUrl(settings, '/#publisher') || '#publisher';
+  const postId = `${url || pagePathForPost(post)}#blogposting`;
+  const graph = [
+    createPublisherSchema(settings),
+    createPersonSchema(settings),
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${url || pagePathForPost(post)}#breadcrumb`,
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: homepageText.siteName,
+          item: absoluteUrl(settings, '/') || '/'
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: post.title,
+          item: url || pagePathForPost(post)
+        }
+      ]
+    },
+    {
+      '@type': 'BlogPosting',
+      '@id': postId,
+      mainEntityOfPage: url || pagePathForPost(post),
+      url: url || pagePathForPost(post),
+      headline: post.title,
+      name: post.title,
+      description,
+      inLanguage: settings.locale,
+      datePublished: toIsoDate(post.date),
+      dateModified: post.modifiedAt || toIsoDate(post.date),
+      author: { '@id': authorId },
+      publisher: { '@id': publisherId },
+      isPartOf: { '@id': absoluteUrl(settings, '/#blog') || '#blog' },
+      ...(image ? { image } : {}),
+      ...(post.category ? { articleSection: post.category } : {}),
+      ...(keywords.length ? { keywords } : {}),
+      ...(post.readingTime ? { timeRequired: `PT${post.readingTime}M` } : {}),
+      ...(post.wordCount ? { wordCount: post.wordCount } : {})
+    }
+  ];
+
+  return {
+    type: 'article',
+    title: `${post.title} | ${homepageText.siteName}`,
+    description,
+    canonicalUrl: url,
+    markdownUrl: absoluteUrl(settings, markdownPathForPost(post)) || markdownPathForPost(post),
+    image,
+    keywords,
+    robots: settings.allowIndexing ? 'index, follow, max-image-preview:large' : 'noindex, nofollow',
+    locale: ogLocale(settings.locale),
+    publishedTime: toIsoDate(post.date),
+    modifiedTime: post.modifiedAt || toIsoDate(post.date),
+    section: post.category,
+    tags: post.tags || [],
+    author: settings.authorName,
+    jsonLd: { '@context': 'https://schema.org', '@graph': graph }
+  };
+}
+
+function xmlEscape(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function markdownEscape(value) {
+  return String(value || '').replace(/\]/g, '\\]');
+}
+
+function createSitemapXml(settings, posts, generatedAt) {
+  const homeUrl = absoluteUrl(settings, '/');
+  if (!homeUrl) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n';
+  }
+
+  const urls = [
+    {
+      loc: homeUrl,
+      lastmod: toIsoDateOnly(generatedAt),
+      changefreq: 'weekly',
+      priority: '1.0'
+    },
+    ...posts.map(post => ({
+      loc: absoluteUrl(settings, pagePathForPost(post)),
+      lastmod: toIsoDateOnly(post.modifiedAt || post.date),
+      changefreq: 'monthly',
+      priority: '0.8'
+    }))
+  ];
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls.filter(url => url.loc).map(url => [
+      '  <url>',
+      `    <loc>${xmlEscape(url.loc)}</loc>`,
+      `    <lastmod>${xmlEscape(url.lastmod)}</lastmod>`,
+      `    <changefreq>${xmlEscape(url.changefreq)}</changefreq>`,
+      `    <priority>${xmlEscape(url.priority)}</priority>`,
+      '  </url>'
+    ].join('\n')),
+    '</urlset>',
+    ''
+  ].join('\n');
+}
+
+function createRobotsTxt(settings) {
+  const sitemapUrl = absoluteUrl(settings, '/sitemap.xml');
+  const llmsUrl = absoluteUrl(settings, '/llms.txt');
+  return [
+    'User-agent: *',
+    settings.allowIndexing ? 'Allow: /' : 'Disallow: /',
+    sitemapUrl ? `Sitemap: ${sitemapUrl}` : 'Sitemap: /sitemap.xml',
+    llmsUrl ? `# LLM guide: ${llmsUrl}` : '# LLM guide: /llms.txt',
+    ''
+  ].join('\n');
+}
+
+function createHomeMarkdown(settings, homepageText, posts) {
+  const postLines = posts.map(post => (
+    `- [${markdownEscape(post.title)}](${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}): ${post.description || post.category || 'Blog post'}`
+  ));
+  return [
+    `# ${homepageText.siteName}`,
+    '',
+    `> ${settings.seoDescription || homepageText.siteSubtitle || 'Static blog archive.'}`,
+    '',
+    `Author: ${homepageText.authorName}`,
+    `Language: ${SUPPORTED_LOCALES[settings.locale]} (${settings.locale})`,
+    '',
+    '## Posts',
+    ...(postLines.length ? postLines : ['No published posts.']),
+    ''
+  ].join('\n');
+}
+
+function createPostMarkdown(settings, homepageText, post) {
+  return [
+    `# ${post.title}`,
+    '',
+    `> ${post.description || 'Blog post.'}`,
+    '',
+    `Canonical URL: ${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}`,
+    `Published: ${toIsoDateOnly(post.date)}`,
+    `Modified: ${toIsoDateOnly(post.modifiedAt || post.date)}`,
+    `Author: ${homepageText.authorName}`,
+    `Category: ${post.category}`,
+    `Tags: ${(post.tags || []).join(', ') || 'None'}`,
+    '',
+    post.rawContent || '',
+    ''
+  ].join('\n');
+}
+
+function createLlmsTxt(settings, homepageText, posts) {
+  const postLines = posts.map(post => {
+    const markdownUrl = absoluteUrl(settings, markdownPathForPost(post)) || markdownPathForPost(post);
+    return `- [${markdownEscape(post.title)}](${markdownUrl}): ${post.description || `${post.category} post`}`;
+  });
+  const optional = [
+    `- [Sitemap](${absoluteUrl(settings, '/sitemap.xml') || '/sitemap.xml'}): XML list of canonical public URLs`,
+    `- [Search index](${absoluteUrl(settings, '/search.json') || '/search.json'}): Machine-readable post metadata used by the public search UI`,
+    `- [Full LLM context](${absoluteUrl(settings, '/llms-full.txt') || '/llms-full.txt'}): Plain Markdown bundle of the public archive`
+  ];
+
+  return [
+    `# ${homepageText.siteName}`,
+    '',
+    `> ${settings.seoDescription || homepageText.siteSubtitle || 'Static blog archive.'}`,
+    '',
+    `This site is a static blog generated by ZenithPress. Post bodies are canonical as authored Markdown; interface text may be localized with the website locale setting.`,
+    `Language: ${SUPPORTED_LOCALES[settings.locale]} (${settings.locale}).`,
+    '',
+    '## Canonical Site',
+    `- [Home](${absoluteUrl(settings, '/') || '/'}): ${homepageText.siteSubtitle || 'Public blog homepage'}`,
+    '',
+    '## Posts',
+    ...(postLines.length ? postLines : ['No published posts.']),
+    '',
+    '## Optional',
+    ...optional,
+    ''
+  ].join('\n');
+}
+
+function createLlmsFullTxt(settings, homepageText, posts) {
+  return [
+    createLlmsTxt(settings, homepageText, posts),
+    '---',
+    '',
+    ...posts.flatMap(post => [
+      createPostMarkdown(settings, homepageText, post),
+      '---',
+      ''
+    ])
+  ].join('\n');
+}
+
 function createDynamicVariables(settings, posts = [], currentPost = null, now = new Date()) {
   const latestPost = posts[0] || null;
   const currentUrl = postUrl(currentPost);
@@ -716,12 +1155,52 @@ function resolveWidgets(widgets, variables, locale) {
   }));
 }
 
+function metaTag(name, content) {
+  return content ? `<meta name="${escapeHtml(name)}" content="${escapeHtml(content)}">` : '';
+}
+
+function propertyTag(property, content) {
+  return content ? `<meta property="${escapeHtml(property)}" content="${escapeHtml(content)}">` : '';
+}
+
+function renderSeoHead(pageMeta = {}) {
+  const tags = [
+    `<title>${escapeHtml(pageMeta.title || '')}</title>`,
+    metaTag('description', pageMeta.description),
+    metaTag('robots', pageMeta.robots),
+    metaTag('generator', 'ZenithPress'),
+    metaTag('keywords', (pageMeta.keywords || []).join(', ')),
+    pageMeta.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(pageMeta.canonicalUrl)}">` : '',
+    pageMeta.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(pageMeta.markdownUrl)}">` : '',
+    propertyTag('og:type', pageMeta.type === 'article' ? 'article' : 'website'),
+    propertyTag('og:title', pageMeta.title),
+    propertyTag('og:description', pageMeta.description),
+    propertyTag('og:url', pageMeta.canonicalUrl),
+    propertyTag('og:site_name', pageMeta.siteName),
+    propertyTag('og:locale', pageMeta.locale),
+    propertyTag('og:image', pageMeta.image),
+    metaTag('twitter:card', pageMeta.image ? 'summary_large_image' : 'summary'),
+    metaTag('twitter:title', pageMeta.title),
+    metaTag('twitter:description', pageMeta.description),
+    metaTag('twitter:image', pageMeta.image),
+    pageMeta.type === 'article' ? propertyTag('article:published_time', pageMeta.publishedTime) : '',
+    pageMeta.type === 'article' ? propertyTag('article:modified_time', pageMeta.modifiedTime) : '',
+    pageMeta.type === 'article' ? propertyTag('article:author', pageMeta.author) : '',
+    pageMeta.type === 'article' ? propertyTag('article:section', pageMeta.section) : '',
+    ...(pageMeta.type === 'article' ? (pageMeta.tags || []).map(tag => propertyTag('article:tag', tag)) : []),
+    pageMeta.jsonLd ? `<script type="application/ld+json">${jsonLdScript(pageMeta.jsonLd)}</script>` : ''
+  ];
+  return tags.filter(Boolean).join('\n  ');
+}
+
 function createTemplateHelpers(settings, variables) {
   return {
     upper: value => String(value || '').toUpperCase(),
     t: value => resolveTemplateVariables(translateText(value, settings.locale), variables),
     copy: (key, fallback = '') => resolveThemeTextCopy(settings, key, fallback, variables),
     date: value => formatDateForLocale(value, settings.locale),
+    isoDate: value => toIsoDate(value),
+    seoHead: pageMeta => renderSeoHead({ ...pageMeta, siteName: settings.siteName }),
     longDate: value => formatDateForLocale(value, settings.locale, {
       weekday: 'long',
       year: 'numeric',
@@ -753,6 +1232,11 @@ function normalizeSettings(settings = {}) {
     authorName: String(settings.authorName || ''),
     authorBio: String(settings.authorBio || ''),
     authorAvatar: String(settings.authorAvatar || ''),
+    siteUrl: normalizePublicUrl(settings.siteUrl || process.env.PUBLIC_SITE_URL || ''),
+    seoDescription: String(settings.seoDescription || '').replace(/\0/g, '').slice(0, 320),
+    seoKeywords: normalizeKeywordList(settings.seoKeywords),
+    seoImage: normalizePublicUrl(settings.seoImage, { allowRelative: true }),
+    allowIndexing: settings.allowIndexing !== false,
     socialLinks: {
       github: settings.socialLinks?.github || '',
       twitter: settings.socialLinks?.twitter || '',
@@ -785,6 +1269,7 @@ function normalizePost(attributes = {}, body = '', fileName = '') {
     draft: attributes.draft === true,
     content: String(body || ''),
     readingTime: calculateReadingTime(body),
+    wordCount: countWords(body),
     fileName
   };
 }
@@ -837,9 +1322,13 @@ function getAllPosts(includeDrafts = true) {
     .map(file => {
       const filePath = path.join(POSTS_DIR, file);
       const content = fs.readFileSync(filePath, 'utf-8');
+      const stats = fs.statSync(filePath);
       const parsed = fm(content);
       
-      return normalizePost(parsed.attributes, parsed.body, file);
+      return {
+        ...normalizePost(parsed.attributes, parsed.body, file),
+        modifiedAt: stats.mtime.toISOString()
+      };
     });
 
   // Sort by date descending
@@ -1125,10 +1614,15 @@ app.post('/api/publish', async (req, res) => {
     logMsg(`Found ${posts.length} published posts to compile.`);
 
     // 4. Render markdown content for each post
-    const compiledPosts = posts.map(post => ({
-      ...post,
-      content: renderMarkdown(post.content)
-    }));
+    const compiledPosts = posts.map(post => {
+      const html = renderMarkdown(post.content);
+      return {
+        ...post,
+        rawContent: post.content,
+        plainText: htmlToText(html),
+        content: html
+      };
+    });
     const publishNow = new Date();
 
     // 5. Load EJS layouts
@@ -1146,6 +1640,7 @@ app.post('/api/publish', async (req, res) => {
     logMsg("Compiling blog home page (index.html)...");
     const homepageVariables = createDynamicVariables(settings, compiledPosts, null, publishNow);
     const homepageText = resolveSettingsText(settings, homepageVariables);
+    const homepageMeta = createHomePageMeta(settings, homepageText, compiledPosts);
     
     const homepageData = {
       siteName: homepageText.siteName,
@@ -1158,6 +1653,7 @@ app.post('/api/publish', async (req, res) => {
       themeText: settings.themeText,
       widgets: resolveWidgets(settings.widgets, homepageVariables, settings.locale),
       helpers: createTemplateHelpers(settings, homepageVariables),
+      pageMeta: homepageMeta,
       variables: homepageVariables,
       posts: compiledPosts
     };
@@ -1166,6 +1662,7 @@ app.post('/api/publish', async (req, res) => {
     // EJS imported as default
     const homeHtml = await import('ejs').then(m => m.default.render(indexTemplate, homepageData));
     fs.writeFileSync(path.join(OUT_DIR, 'index.html'), homeHtml, 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts), 'utf-8');
     logMsg("Home page successfully written.");
 
     // 7. Build individual post pages under out/posts/[slug]/index.html for clean URLs
@@ -1182,6 +1679,7 @@ app.post('/api/publish', async (req, res) => {
       }
       const singlePostVariables = createDynamicVariables(settings, compiledPosts, post, publishNow);
       const singlePostText = resolveSettingsText(settings, singlePostVariables);
+      const singlePostMeta = createPostPageMeta(settings, singlePostText, post);
 
       const singlePostData = {
         siteName: singlePostText.siteName,
@@ -1194,6 +1692,7 @@ app.post('/api/publish', async (req, res) => {
         themeText: settings.themeText,
         widgets: resolveWidgets(settings.widgets, singlePostVariables, settings.locale),
         helpers: createTemplateHelpers(settings, singlePostVariables),
+        pageMeta: singlePostMeta,
         variables: singlePostVariables,
         posts: compiledPosts,
         post: post
@@ -1201,6 +1700,7 @@ app.post('/api/publish', async (req, res) => {
 
       const postHtml = await import('ejs').then(m => m.default.render(postTemplate, singlePostData));
       fs.writeFileSync(path.join(singlePostDir, 'index.html'), postHtml, 'utf-8');
+      fs.writeFileSync(path.join(singlePostDir, 'index.html.md'), createPostMarkdown(settings, singlePostText, post), 'utf-8');
     }
     logMsg(`All ${compiledPosts.length} posts compiled successfully.`);
 
@@ -1220,6 +1720,11 @@ app.post('/api/publish', async (req, res) => {
     if (fs.existsSync(COMMON_SEARCH_SCRIPT)) {
       fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(OUT_DIR, 'search.js'));
       logMsg("Copied shared search script (search.js).");
+    }
+
+    if (fs.existsSync(COMMON_SEARCH_STYLE)) {
+      fs.copyFileSync(COMMON_SEARCH_STYLE, path.join(OUT_DIR, 'search.css'));
+      logMsg("Copied shared search stylesheet (search.css).");
     }
 
     if (fs.existsSync(FAVICON_SOURCE)) {
@@ -1243,14 +1748,25 @@ app.post('/api/publish', async (req, res) => {
     const searchIndex = compiledPosts.map(p => ({
       title: p.title,
       slug: p.slug,
+      url: absoluteUrl(settings, pagePathForPost(p)) || pagePathForPost(p),
+      markdownUrl: absoluteUrl(settings, markdownPathForPost(p)) || markdownPathForPost(p),
       category: p.category,
       description: p.description,
       date: p.date,
+      dateModified: p.modifiedAt || toIsoDate(p.date),
       formattedDate: formatDateForLocale(p.date, settings.locale),
+      readingTime: p.readingTime,
+      wordCount: p.wordCount,
       tags: p.tags
     }));
     fs.writeFileSync(path.join(OUT_DIR, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');
     logMsg("Search database written.");
+
+    fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, publishNow), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), createRobotsTxt(settings), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts), 'utf-8');
+    logMsg("Discovery files written (sitemap.xml, robots.txt, llms.txt).");
 
     logMsg("Static compilation process finished successfully!");
     res.json({ success: true, log });

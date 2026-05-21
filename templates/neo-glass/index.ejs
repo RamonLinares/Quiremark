@@ -1,16 +1,16 @@
 <!DOCTYPE html>
-<html lang="<%= locale %>">
+<html lang="<%= typeof locale !== 'undefined' ? locale : 'en' %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= siteName %> | <%= helpers.t('Home') %></title>
-  <meta name="description" content="<%= siteSubtitle %>">
+  <%- helpers.seoHead(pageMeta) %>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/search.css">
 </head>
 <body class="neoglass-theme">
   <!-- Glowing gradient backgrounds -->
@@ -26,7 +26,7 @@
 
   <div class="main-layout animate-fade-in">
     <main class="posts-feed">
-      <section class="search-panel" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+      <section class="search-panel" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
         <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
         <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
@@ -37,12 +37,12 @@
           <p><%= helpers.copy('emptyState', 'No posts published yet.') %></p>
         </div>
       <% } else { %>
-        <% posts.forEach(post => { %>
+        <% posts.forEach((post, index) => { %>
           <article class="post-card glass-panel" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
             <% if (post.coverImage) { %>
               <div class="post-image-container">
                 <a href="/posts/<%= post.slug %>/index.html">
-                  <img src="<%= post.coverImage %>" alt="<%= post.title %>" class="post-cover" loading="lazy">
+                  <img src="<%= post.coverImage %>" alt="<%= post.title %>" class="post-cover" loading="<%= index === 0 ? 'eager' : 'lazy' %>" decoding="async" fetchpriority="<%= index === 0 ? 'high' : 'auto' %>">
                 </a>
               </div>
             <% } %>
@@ -50,7 +50,7 @@
               <div class="post-meta">
                 <span class="post-category"><%= post.category %></span>
                 <span class="meta-divider">•</span>
-                <span class="post-date"><%= helpers.date(post.date) %></span>
+                <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
               </div>
               <h2 class="post-title">
                 <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
@@ -72,7 +72,7 @@
             <div class="bio-content">
               <% if (authorAvatar) { %>
                 <div class="avatar-glow">
-                  <img src="<%= authorAvatar %>" alt="<%= authorName %>" class="bio-avatar">
+                  <img src="<%= authorAvatar %>" alt="<%= authorName %>" class="bio-avatar" loading="lazy" decoding="async">
                 </div>
               <% } %>
               <h4 class="bio-name"><%= authorName %></h4>
@@ -89,7 +89,7 @@
               <% posts.slice(0, 5).forEach(p => { %>
                 <li>
                   <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link"><%= p.title %></a>
-                  <span class="recent-post-date"><%= helpers.date(p.date) %></span>
+                  <time class="recent-post-date" datetime="<%= helpers.isoDate(p.date) %>"><%= helpers.date(p.date) %></time>
                 </li>
               <% }) %>
             </ul>
