@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import ejs from 'ejs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -60,6 +61,30 @@ const THEME_TEXT_KEYS = [
   'footerCreditUrl'
 ];
 const LONG_THEME_TEXT_KEYS = new Set(['newsletterDescription', 'footerRights']);
+const REQUIRED_TEMPLATE_FIELDS = [
+  'siteName',
+  'siteSubtitle',
+  'authorName',
+  'authorBio',
+  'authorAvatar',
+  'socialLinks',
+  'locale',
+  'themeText',
+  'widgets',
+  'helpers',
+  'pageMeta',
+  'variables',
+  'posts'
+];
+const REQUIRED_TEMPLATE_HELPERS = [
+  'upper',
+  't',
+  'copy',
+  'date',
+  'isoDate',
+  'seoHead',
+  'longDate'
+];
 const TRANSLATIONS = {
   es: {
     'Home': 'Inicio',
@@ -1210,6 +1235,30 @@ function createTemplateHelpers(settings, variables) {
   };
 }
 
+function assertTemplateContext(data, templateLabel, options = {}) {
+  const requiredFields = options.requirePost
+    ? [...REQUIRED_TEMPLATE_FIELDS, 'post']
+    : REQUIRED_TEMPLATE_FIELDS;
+  const missingFields = requiredFields.filter(field => data[field] === undefined);
+  if (missingFields.length) {
+    throw new Error(`${templateLabel} render context missing required fields: ${missingFields.join(', ')}`);
+  }
+
+  if (!data.pageMeta || typeof data.pageMeta !== 'object') {
+    throw new Error(`${templateLabel} render context requires pageMeta to be an object.`);
+  }
+
+  const missingHelpers = REQUIRED_TEMPLATE_HELPERS.filter(helperName => typeof data.helpers?.[helperName] !== 'function');
+  if (missingHelpers.length) {
+    throw new Error(`${templateLabel} render context missing helper functions: ${missingHelpers.join(', ')}`);
+  }
+}
+
+function renderTemplate(template, data, templateLabel, options) {
+  assertTemplateContext(data, templateLabel, options);
+  return ejs.render(template, data);
+}
+
 function normalizeWidget(widget = {}) {
   return {
     ...widget,
@@ -1658,9 +1707,7 @@ app.post('/api/publish', async (req, res) => {
       posts: compiledPosts
     };
 
-    // Render using EJS
-    // EJS imported as default
-    const homeHtml = await import('ejs').then(m => m.default.render(indexTemplate, homepageData));
+    const homeHtml = renderTemplate(indexTemplate, homepageData, `${templateName}/index.ejs`);
     fs.writeFileSync(path.join(OUT_DIR, 'index.html'), homeHtml, 'utf-8');
     fs.writeFileSync(path.join(OUT_DIR, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts), 'utf-8');
     logMsg("Home page successfully written.");
@@ -1698,7 +1745,7 @@ app.post('/api/publish', async (req, res) => {
         post: post
       };
 
-      const postHtml = await import('ejs').then(m => m.default.render(postTemplate, singlePostData));
+      const postHtml = renderTemplate(postTemplate, singlePostData, `${templateName}/post.ejs`, { requirePost: true });
       fs.writeFileSync(path.join(singlePostDir, 'index.html'), postHtml, 'utf-8');
       fs.writeFileSync(path.join(singlePostDir, 'index.html.md'), createPostMarkdown(settings, singlePostText, post), 'utf-8');
     }
