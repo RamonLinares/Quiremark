@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= post.title %> | <%= siteName %></title>
   <meta name="description" content="<%= post.description %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -21,7 +23,7 @@
   <div class="main-layout single-post-layout">
     <main class="post-detail">
       <nav class="back-nav">
-        <a href="/index.html" class="back-link">← Back to Musings</a>
+        <a href="/index.html" class="back-link"><%= helpers.copy('backLinkLabel', '← Back to Musings') %></a>
       </nav>
 
       <article class="full-post">
@@ -104,16 +106,16 @@
             <h4 class="widget-title"><%= widget.name %></h4>
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
-                <p>Subscribe for the latest design & dev updates directly to your inbox.</p>
+                <p><%= helpers.copy('newsletterDescription', 'Subscribe for the latest design & dev updates directly to your inbox.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                     <input type="email" name="email" placeholder="<%= widget.placeholderText || 'Your email address' %>" required aria-label="Email Address">
-                    <button type="submit">Subscribe</button>
+                    <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'Configure newsletter endpoint' %>" disabled aria-label="Email Address">
-                    <button type="button" disabled>Configure</button>
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="Email Address">
+                    <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
                   </form>
                 <% } %>
               </div>
@@ -126,8 +128,8 @@
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. All rights reserved.</p>
-        <p class="credit">Powered by <a href="#" class="footer-link">ZenithPress</a></p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. <%= helpers.copy('footerRights', 'All rights reserved.') %></p>
+        <p class="credit"><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', 'ZenithPress') %></a></p>
       </div>
     </div>
   </footer>

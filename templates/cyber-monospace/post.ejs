@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= post.title %> | <%= siteName %></title>
   <meta name="description" content="<%= post.description %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -20,11 +22,11 @@
         <span class="btn-dot close"></span>
         <span class="btn-dot shrink"></span>
         <span class="btn-dot expand"></span>
-        <span class="terminal-title">zenith_press_kernel.sys</span>
+        <span class="terminal-title"><%= helpers.copy('terminalTitle', 'zenith_press_kernel.sys') %></span>
       </div>
       <div class="terminal-body">
         <p class="logo"><a href="/index.html">>_ <%= siteName %></a></p>
-        <p class="subtitle">System Status: ONLINE | <%= siteSubtitle %></p>
+        <p class="subtitle"><%= helpers.copy('statusLabel', 'System Status: ONLINE') %> | <%= siteSubtitle %></p>
       </div>
     </div>
   </header>
@@ -32,7 +34,7 @@
   <div class="main-layout single-post-layout">
     <main class="post-detail">
       <nav class="back-nav">
-        <a href="/index.html" class="back-link">[ BACK_TO_DIRECTORY ]</a>
+        <a href="/index.html" class="back-link"><%= helpers.copy('backLinkLabel', '[ BACK_TO_DIRECTORY ]') %></a>
       </nav>
 
       <article class="full-post terminal-panel">
@@ -120,7 +122,7 @@
 
   <footer class="blog-footer terminal-panel">
     <div class="terminal-header">
-      <span class="terminal-title">system://shutdown.log</span>
+      <span class="terminal-title"><%= helpers.copy('footerTerminalTitle', 'system://shutdown.log') %></span>
     </div>
     <div class="terminal-body">
       <div class="footer-container">
@@ -130,16 +132,16 @@
               <h4 class="widget-title">>_ <%= widget.name %></h4>
               <% if (widget.type === 'newsletter') { %>
                 <div class="newsletter-content">
-                  <p>CONNECT TO SECTOR NEWSLETTER STREAM.</p>
+                  <p><%= helpers.copy('newsletterDescription', 'CONNECT TO SECTOR NEWSLETTER STREAM.') %></p>
                   <% if (widget.actionUrl) { %>
                     <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                       <input type="email" name="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
-                      <button type="submit">[ INJECT ]</button>
+                      <button type="submit"><%= helpers.copy('newsletterSubmitLabel', '[ INJECT ]') %></button>
                     </form>
                   <% } else { %>
                     <form class="newsletter-form">
-                      <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT' %>" disabled aria-label="Terminal Email Address">
-                      <button type="button" disabled>[ CONFIG ]</button>
+                      <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT') %>" disabled aria-label="Terminal Email Address">
+                      <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', '[ CONFIG ]') %></button>
                     </form>
                   <% } %>
                 </div>
@@ -152,8 +154,8 @@
           <% }) %>
         </div>
         <div class="footer-bottom">
-          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
-          <p class="credit">COMPILED_BY: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. <%= helpers.copy('footerRights', 'ALL RIGHTS SECURED.') %></p>
+          <p class="credit"><%= helpers.copy('footerCreditLabel', 'COMPILED_BY:') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', '[ZENITH_PRESS]') %></a></p>
         </div>
       </div>
     </div>

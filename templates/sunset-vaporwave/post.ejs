@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= post.title %> | <%= siteName %></title>
   <meta name="description" content="<%= post.description %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
@@ -28,7 +30,7 @@
   <div class="main-layout single-post-layout animate-fade-in">
     <main class="post-detail">
       <nav class="back-nav">
-        <a href="/index.html" class="back-link">[ BACK_TO_DIRECTORY ]</a>
+        <a href="/index.html" class="back-link"><%= helpers.copy('backLinkLabel', '[ BACK_TO_DIRECTORY ]') %></a>
       </nav>
 
       <article class="full-post vapor-panel">
@@ -113,16 +115,16 @@
             <h4 class="widget-title"><%= widget.name %></h4>
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
-                <p>Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.</p>
+                <p><%= helpers.copy('newsletterDescription', 'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                     <input type="email" name="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
-                    <button type="submit">TRANSMIT</button>
+                    <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'TRANSMIT') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT.EXE' %>" disabled aria-label="Neon Email Terminal">
-                    <button type="button" disabled>CONFIG</button>
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT.EXE') %>" disabled aria-label="Neon Email Terminal">
+                    <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'CONFIG') %></button>
                   </form>
                 <% } %>
               </div>
@@ -135,8 +137,8 @@
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
-        <p class="credit">SYSTEM_ENGINE: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. <%= helpers.copy('footerRights', 'ALL PROTOCOLS SECURED.') %></p>
+        <p class="credit"><%= helpers.copy('footerCreditLabel', 'SYSTEM_ENGINE:') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', '[ZENITH_PRESS]') %></a></p>
       </div>
     </div>
   </footer>

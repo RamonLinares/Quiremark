@@ -10,6 +10,7 @@
 - **Safer static compiler**: Markdown is sanitized before template injection, slugs are validated, and output paths are constrained to the expected folders.
 - **Client-side search**: Publish generates `out/search.json` and `out/search.js`, and every index template renders a search box that filters visible posts and shows linked results.
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
+- **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
 - **GitHub Pages deployer**: The local backend deploys `out/` to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
 - **6 visual templates**:
   - `nordic-minimal`
@@ -63,6 +64,28 @@ Newsletter widgets support:
 ```
 
 The generated static site submits a single `email` field with `method="post"` to `actionUrl`.
+
+Theme text overrides are stored under `themeText` in `content/settings.json`. Empty strings use the active template's default wording. Dynamic variables can be used in theme copy, `siteSubtitle`, `authorBio`, widget titles, newsletter placeholders, and custom HTML widgets:
+
+```json
+{
+  "themeText": {
+    "searchLabel": "Search Notes from {year}",
+    "emptyState": "No essays yet.",
+    "newsletterDescription": "Get new essays by email. Latest: {lastPostTitle}",
+    "footerCreditText": "ZenithPress"
+  }
+}
+```
+
+Supported variables include:
+
+- `{date}`, `{time}`, `{generatedAt}`, `{isoDate}`, `{year}`, `{month}`, `{day}`
+- `{siteName}`, `{siteSubtitle}`, `{authorName}`, `{authorBio}`, `{template}`, `{homeUrl}`, `{postCount}`
+- `{lastPost}`, `{lastPostUrl}`, `{lastPostTitle}`, `{lastPostDescription}`, `{lastPostDate}`, `{lastPostCategory}`, `{lastPostTags}`, `{lastPostReadingTime}`
+- `{post}`, `{postUrl}`, `{postTitle}`, `{postDescription}`, `{postDate}`, `{postCategory}`, `{postTags}`, `{postReadingTime}`
+
+`{lastPost}` is the generated URL for the newest published post. `{post*}` variables resolve on individual post pages and are blank on index pages.
 
 ## Static Publishing
 

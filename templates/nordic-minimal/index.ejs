@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= siteName %> | Home</title>
   <meta name="description" content="<%= siteSubtitle %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -20,15 +22,15 @@
 
   <div class="main-layout">
     <main class="posts-feed">
-      <section class="search-panel" data-search-panel>
-        <label class="search-label" for="site-search">Search Archive</label>
-        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+      <section class="search-panel" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+        <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state">
-          <p>No posts published yet.</p>
+          <p><%= helpers.copy('emptyState', 'No posts published yet.') %></p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
@@ -49,7 +51,7 @@
               <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
             </h2>
             <p class="post-excerpt"><%= post.description %></p>
-            <a href="/posts/<%= post.slug %>/index.html" class="read-more">Read Entry →</a>
+            <a href="/posts/<%= post.slug %>/index.html" class="read-more"><%= helpers.copy('readMoreLabel', 'Read Entry →') %></a>
           </article>
         <% }) %>
       <% } %>
@@ -113,16 +115,16 @@
             <h4 class="widget-title"><%= widget.name %></h4>
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
-                <p>Subscribe for the latest design & dev updates directly to your inbox.</p>
+                <p><%= helpers.copy('newsletterDescription', 'Subscribe for the latest design & dev updates directly to your inbox.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                     <input type="email" name="email" placeholder="<%= widget.placeholderText || 'Your email address' %>" required aria-label="Email Address">
-                    <button type="submit">Subscribe</button>
+                    <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'Configure newsletter endpoint' %>" disabled aria-label="Email Address">
-                    <button type="button" disabled>Configure</button>
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="Email Address">
+                    <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
                   </form>
                 <% } %>
               </div>
@@ -135,8 +137,8 @@
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. All rights reserved.</p>
-        <p class="credit">Powered by <a href="#" class="footer-link">ZenithPress</a></p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. <%= helpers.copy('footerRights', 'All rights reserved.') %></p>
+        <p class="credit"><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', 'ZenithPress') %></a></p>
       </div>
     </div>
   </footer>

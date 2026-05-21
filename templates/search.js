@@ -1,6 +1,7 @@
 (() => {
   const input = document.querySelector('[data-search-input]');
   const results = document.querySelector('[data-search-results]');
+  const panel = document.querySelector('[data-search-panel]');
   const cards = Array.from(document.querySelectorAll('[data-search-card]'));
 
   if (!input || !results) return;
@@ -115,7 +116,7 @@
     if (matches.length === 0) {
       const empty = document.createElement('span');
       empty.className = 'search-empty';
-      empty.textContent = 'No matching posts found.';
+      empty.textContent = panel?.dataset.searchEmpty || 'No matching posts found.';
       results.appendChild(empty);
       return;
     }

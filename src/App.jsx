@@ -11,6 +11,42 @@ const sanitizeSlugInput = (value) => value
   .replace(/-+/g, '-')
   .replace(/(^-|-$)/g, '');
 
+const THEME_TEXT_FIELDS = [
+  { key: 'searchLabel', label: 'Search Label', placeholder: 'Search Archive' },
+  { key: 'searchPlaceholder', label: 'Search Placeholder', placeholder: 'Search posts, categories, or tags...' },
+  { key: 'searchNoResults', label: 'Search Empty Result', placeholder: 'No matching posts found.' },
+  { key: 'emptyState', label: 'No Posts Message', placeholder: 'Use selected theme default' },
+  { key: 'readMoreLabel', label: 'Read More Link', placeholder: 'Use selected theme default' },
+  { key: 'backLinkLabel', label: 'Post Back Link', placeholder: 'Use selected theme default' },
+  { key: 'statusLabel', label: 'Status Label', placeholder: 'Use selected theme default' },
+  { key: 'editionLabel', label: 'Edition Label', placeholder: 'Use selected theme default' },
+  { key: 'terminalTitle', label: 'Terminal Title', placeholder: 'Use selected theme default' },
+  { key: 'footerTerminalTitle', label: 'Footer Terminal Title', placeholder: 'Use selected theme default' },
+  { key: 'newsletterDescription', label: 'Newsletter Description', placeholder: 'Use selected theme default', multiline: true },
+  { key: 'newsletterSubmitLabel', label: 'Newsletter Submit Button', placeholder: 'Use selected theme default' },
+  { key: 'newsletterDisabledPlaceholder', label: 'Newsletter Disabled Placeholder', placeholder: 'Use selected theme default' },
+  { key: 'newsletterDisabledLabel', label: 'Newsletter Disabled Button', placeholder: 'Use selected theme default' },
+  { key: 'footerRights', label: 'Footer Rights Text', placeholder: 'Use selected theme default' },
+  { key: 'footerCreditLabel', label: 'Footer Credit Label', placeholder: 'Use selected theme default' },
+  { key: 'footerCreditText', label: 'Footer Credit Text', placeholder: 'Use selected theme default' },
+  { key: 'footerCreditUrl', label: 'Footer Credit URL', placeholder: '#' }
+];
+
+const DYNAMIC_VARIABLE_TOKENS = [
+  '{date}',
+  '{time}',
+  '{year}',
+  '{siteName}',
+  '{authorName}',
+  '{postCount}',
+  '{lastPost}',
+  '{lastPostTitle}',
+  '{lastPostDate}',
+  '{lastPostCategory}',
+  '{postUrl}',
+  '{postTitle}'
+];
+
 export default function App() {
   const [authToken, setAuthToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
@@ -175,6 +211,16 @@ export default function App() {
     } catch (err) {
       logMsg(err.message || 'Failed to save settings configurations.', 'error');
     }
+  };
+
+  const updateThemeText = (key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      themeText: {
+        ...(prev.themeText || {}),
+        [key]: value
+      }
+    }));
   };
 
   // Image base64 upload helper
@@ -739,6 +785,18 @@ export default function App() {
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                             Type: {widget.type}
                           </span>
+                          <input
+                            type="text"
+                            className="meta-field"
+                            value={widget.name || ''}
+                            onChange={(e) => {
+                              const updatedWidgets = [...settings.widgets];
+                              updatedWidgets[idx].name = e.target.value;
+                              setSettings({ ...settings, widgets: updatedWidgets });
+                            }}
+                            onBlur={() => saveSettings(settings)}
+                            placeholder="Widget title, supports {date} variables..."
+                          />
                           {widget.type === 'newsletter' && widget.enabled && (
                             <>
                               <input
@@ -945,6 +1003,61 @@ export default function App() {
                       💾 Save Social Links
                     </button>
                   </div>
+                </div>
+
+                <div className="brand-settings-card" style={{ marginTop: '30px' }}>
+                  <h3>Theme Copy Overrides</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '18px' }}>
+                    Leave fields blank to keep the selected theme defaults.
+                  </p>
+                  <div style={{ marginBottom: '20px', padding: '14px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem' }}>Dynamic Variables</h4>
+                    <p style={{ color: 'var(--text-secondary)', margin: '0 0 12px 0', fontSize: '0.82rem' }}>
+                      These also work in site subtitle, author bio, widget titles, newsletter placeholders, and custom HTML widgets.
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {DYNAMIC_VARIABLE_TOKENS.map(token => (
+                        <code
+                          key={token}
+                          style={{ padding: '4px 7px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'var(--accent-cyan)' }}
+                        >
+                          {token}
+                        </code>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+                    {THEME_TEXT_FIELDS.map(field => (
+                      <div className="meta-input-group" key={field.key}>
+                        <label>{field.label}</label>
+                        {field.multiline ? (
+                          <textarea
+                            className="meta-field"
+                            style={{ height: '92px', resize: 'vertical' }}
+                            value={(settings.themeText && settings.themeText[field.key]) || ''}
+                            onChange={(e) => updateThemeText(field.key, e.target.value)}
+                            placeholder={field.placeholder}
+                          />
+                        ) : (
+                          <input
+                            type={field.type || 'text'}
+                            className="meta-field"
+                            value={(settings.themeText && settings.themeText[field.key]) || ''}
+                            onChange={(e) => updateThemeText(field.key, e.target.value)}
+                            placeholder={field.placeholder}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    className="solid-btn"
+                    style={{ alignSelf: 'flex-start', marginTop: '20px' }}
+                    onClick={() => saveSettings(settings)}
+                  >
+                    Save Theme Copy
+                  </button>
                 </div>
               </div>
             )}

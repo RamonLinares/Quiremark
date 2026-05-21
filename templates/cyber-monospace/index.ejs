@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= siteName %> | Home</title>
   <meta name="description" content="<%= siteSubtitle %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -20,26 +22,26 @@
         <span class="btn-dot close"></span>
         <span class="btn-dot shrink"></span>
         <span class="btn-dot expand"></span>
-        <span class="terminal-title">zenith_press_kernel.sys</span>
+        <span class="terminal-title"><%= helpers.copy('terminalTitle', 'zenith_press_kernel.sys') %></span>
       </div>
       <div class="terminal-body">
         <h1 class="logo"><a href="/index.html">>_ <%= siteName %></a></h1>
-        <p class="subtitle">System Status: ONLINE | <%= siteSubtitle %></p>
+        <p class="subtitle"><%= helpers.copy('statusLabel', 'System Status: ONLINE') %> | <%= siteSubtitle %></p>
       </div>
     </div>
   </header>
 
   <div class="main-layout">
     <main class="posts-feed">
-      <section class="search-panel" data-search-panel>
-        <label class="search-label" for="site-search">Search Archive</label>
-        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+      <section class="search-panel" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+        <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state terminal-panel">
-          <p>[ERROR: NO_POSTS_FOUND_IN_SECTOR]</p>
+          <p><%= helpers.copy('emptyState', '[ERROR: NO_POSTS_FOUND_IN_SECTOR]') %></p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
@@ -66,7 +68,7 @@
               </h2>
               <p class="post-excerpt">> <%= post.description %></p>
               <div class="action-row">
-                <a href="/posts/<%= post.slug %>/index.html" class="read-more">[ EXECUTE_POST_READER ]</a>
+                <a href="/posts/<%= post.slug %>/index.html" class="read-more"><%= helpers.copy('readMoreLabel', '[ EXECUTE_POST_READER ]') %></a>
               </div>
             </div>
           </article>
@@ -131,7 +133,7 @@
 
   <footer class="blog-footer terminal-panel">
     <div class="terminal-header">
-      <span class="terminal-title">system://shutdown.log</span>
+      <span class="terminal-title"><%= helpers.copy('footerTerminalTitle', 'system://shutdown.log') %></span>
     </div>
     <div class="terminal-body">
       <div class="footer-container">
@@ -141,16 +143,16 @@
               <h4 class="widget-title">>_ <%= widget.name %></h4>
               <% if (widget.type === 'newsletter') { %>
                 <div class="newsletter-content">
-                  <p>CONNECT TO SECTOR NEWSLETTER STREAM.</p>
+                  <p><%= helpers.copy('newsletterDescription', 'CONNECT TO SECTOR NEWSLETTER STREAM.') %></p>
                   <% if (widget.actionUrl) { %>
                     <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                       <input type="email" name="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
-                      <button type="submit">[ INJECT ]</button>
+                      <button type="submit"><%= helpers.copy('newsletterSubmitLabel', '[ INJECT ]') %></button>
                     </form>
                   <% } else { %>
                     <form class="newsletter-form">
-                      <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT' %>" disabled aria-label="Terminal Email Address">
-                      <button type="button" disabled>[ CONFIG ]</button>
+                      <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT') %>" disabled aria-label="Terminal Email Address">
+                      <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', '[ CONFIG ]') %></button>
                     </form>
                   <% } %>
                 </div>
@@ -163,8 +165,8 @@
           <% }) %>
         </div>
         <div class="footer-bottom">
-          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
-          <p class="credit">COMPILED_BY: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. <%= helpers.copy('footerRights', 'ALL RIGHTS SECURED.') %></p>
+          <p class="credit"><%= helpers.copy('footerCreditLabel', 'COMPILED_BY:') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', '[ZENITH_PRESS]') %></a></p>
         </div>
       </div>
     </div>

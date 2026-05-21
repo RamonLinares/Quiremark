@@ -28,6 +28,28 @@ const DOMPurify = createDOMPurify(window);
 const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SAFE_BRANCH_RE = /^(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,128}$/;
 const SAFE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
+const DYNAMIC_VARIABLE_RE = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
+const THEME_TEXT_KEYS = [
+  'searchLabel',
+  'searchPlaceholder',
+  'searchNoResults',
+  'emptyState',
+  'readMoreLabel',
+  'backLinkLabel',
+  'statusLabel',
+  'editionLabel',
+  'terminalTitle',
+  'footerTerminalTitle',
+  'newsletterDescription',
+  'newsletterSubmitLabel',
+  'newsletterDisabledPlaceholder',
+  'newsletterDisabledLabel',
+  'footerRights',
+  'footerCreditLabel',
+  'footerCreditText',
+  'footerCreditUrl'
+];
+const LONG_THEME_TEXT_KEYS = new Set(['newsletterDescription', 'footerRights']);
 
 // Middleware configurations
 app.use(cors({
@@ -48,7 +70,9 @@ const POSTS_DIR = path.join(CONTENT_DIR, 'posts');
 const IMAGES_DIR = path.join(CONTENT_DIR, 'images');
 const TEMPLATES_DIR = path.join(__dirname, 'templates');
 const OUT_DIR = path.join(__dirname, 'out');
+const PUBLIC_DIR = path.join(__dirname, 'public');
 const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
+const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
 // Ensure necessary directories exist on startup
 [CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR].forEach(dir => {
@@ -69,6 +93,15 @@ const serveNoCache = (dir) => express.static(dir, {
 app.use(serveNoCache(path.join(__dirname, 'out'))); // Compiled static public site at root
 app.use('/admin', serveNoCache(path.join(__dirname, 'dist'))); // Admin dashboard SPA at /admin
 app.use('/content/images', serveNoCache(IMAGES_DIR)); // Decoded images
+app.get(['/favicon.svg', '/favicon.ico'], (req, res) => {
+  if (!fs.existsSync(FAVICON_SOURCE)) {
+    res.status(404).end();
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.type('image/svg+xml');
+  res.sendFile(FAVICON_SOURCE);
+});
 
 
 
@@ -83,6 +116,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     authorAvatar: "",
     socialLinks: { github: "", twitter: "", linkedin: "", instagram: "" },
     selectedTemplate: "nordic-minimal",
+    themeText: normalizeThemeText(),
     widgets: [
       { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
       { id: "recent-posts", name: "Recent Posts", type: "recent-posts", enabled: true, position: "sidebar", order: 2 },
@@ -186,6 +220,151 @@ function normalizeActionUrl(actionUrl) {
   }
 }
 
+function hasDynamicVariable(value) {
+  return /\{[A-Za-z][A-Za-z0-9_]*\}/.test(String(value || ''));
+}
+
+function normalizeThemeTextUrl(value, options = {}) {
+  const urlValue = String(value || '').trim();
+  if (!urlValue) return '';
+  if (options.allowVariables && hasDynamicVariable(urlValue)) {
+    return urlValue.replace(/[\u0000-\u001F\u007F]/g, '').slice(0, 180);
+  }
+  if (urlValue === '#' || (urlValue.startsWith('/') && !urlValue.startsWith('//'))) {
+    return urlValue;
+  }
+  try {
+    const url = new URL(urlValue);
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? urlValue : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeThemeTextValue(key, value) {
+  if (key === 'footerCreditUrl') return normalizeThemeTextUrl(value, { allowVariables: true });
+  const limit = LONG_THEME_TEXT_KEYS.has(key) ? 500 : 180;
+  return String(value || '').replace(/\0/g, '').slice(0, limit);
+}
+
+function normalizeThemeText(themeText = {}) {
+  const source = themeText && typeof themeText === 'object' ? themeText : {};
+  return THEME_TEXT_KEYS.reduce((acc, key) => {
+    acc[key] = normalizeThemeTextValue(key, source[key]);
+    return acc;
+  }, {});
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function resolveTemplateVariables(value, variables = {}, options = {}) {
+  return String(value || '').replace(DYNAMIC_VARIABLE_RE, (match, key) => {
+    if (!Object.prototype.hasOwnProperty.call(variables, key)) {
+      return match;
+    }
+    const replacement = String(variables[key] ?? '');
+    return options.escapeValues ? escapeHtml(replacement) : replacement;
+  });
+}
+
+function postUrl(post) {
+  return post?.slug ? `/posts/${post.slug}/index.html` : '';
+}
+
+function formatPostTags(post) {
+  return normalizeTags(post?.tags).join(', ');
+}
+
+function createDynamicVariables(settings, posts = [], currentPost = null, now = new Date()) {
+  const latestPost = posts[0] || null;
+  const currentUrl = postUrl(currentPost);
+  const latestUrl = postUrl(latestPost);
+  const date = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(now);
+  const time = new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(now);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(now);
+  const day = new Intl.DateTimeFormat('en-US', { day: '2-digit' }).format(now);
+
+  return {
+    date,
+    time,
+    generatedAt: `${date} ${time}`,
+    isoDate: now.toISOString().split('T')[0],
+    year: String(now.getFullYear()),
+    month,
+    day,
+    siteName: settings.siteName,
+    siteSubtitle: settings.siteSubtitle,
+    authorName: settings.authorName,
+    authorBio: settings.authorBio,
+    template: settings.selectedTemplate,
+    homeUrl: '/index.html',
+    postCount: String(posts.length),
+    lastPost: latestUrl,
+    lastPostUrl: latestUrl,
+    lastPostSlug: latestPost?.slug || '',
+    lastPostTitle: latestPost?.title || '',
+    lastPostDescription: latestPost?.description || '',
+    lastPostDate: latestPost?.date || '',
+    lastPostCategory: latestPost?.category || '',
+    lastPostTags: formatPostTags(latestPost),
+    lastPostReadingTime: latestPost?.readingTime ? String(latestPost.readingTime) : '',
+    latestPost: latestUrl,
+    latestPostUrl: latestUrl,
+    latestPostTitle: latestPost?.title || '',
+    post: currentUrl,
+    postUrl: currentUrl,
+    postSlug: currentPost?.slug || '',
+    postTitle: currentPost?.title || '',
+    postDescription: currentPost?.description || '',
+    postDate: currentPost?.date || '',
+    postCategory: currentPost?.category || '',
+    postTags: formatPostTags(currentPost),
+    postReadingTime: currentPost?.readingTime ? String(currentPost.readingTime) : ''
+  };
+}
+
+function resolveThemeTextCopy(themeText, key, fallback = '', variables = {}) {
+  const value = themeText?.[key];
+  const rawValue = typeof value === 'string' && value.trim() ? value : fallback;
+  const resolved = resolveTemplateVariables(rawValue, variables);
+  if (key === 'footerCreditUrl') {
+    return normalizeThemeTextUrl(resolved) || normalizeThemeTextUrl(fallback) || '#';
+  }
+  return resolved;
+}
+
+function resolveSettingsText(settings, variables) {
+  return {
+    siteName: resolveTemplateVariables(settings.siteName, variables),
+    siteSubtitle: resolveTemplateVariables(settings.siteSubtitle, variables),
+    authorName: resolveTemplateVariables(settings.authorName, variables),
+    authorBio: resolveTemplateVariables(settings.authorBio, variables)
+  };
+}
+
+function resolveWidgets(widgets, variables) {
+  return widgets.map(widget => ({
+    ...widget,
+    name: resolveTemplateVariables(widget.name, variables),
+    placeholderText: resolveTemplateVariables(widget.placeholderText, variables),
+    htmlContent: resolveTemplateVariables(widget.htmlContent, variables, { escapeValues: true })
+  }));
+}
+
+function createTemplateHelpers(settings, variables) {
+  return {
+    upper: value => String(value || '').toUpperCase(),
+    copy: (key, fallback = '') => resolveThemeTextCopy(settings.themeText, key, fallback, variables)
+  };
+}
+
 function normalizeWidget(widget = {}) {
   return {
     ...widget,
@@ -215,6 +394,7 @@ function normalizeSettings(settings = {}) {
       instagram: settings.socialLinks?.instagram || ''
     },
     selectedTemplate: String(settings.selectedTemplate || 'nordic-minimal'),
+    themeText: normalizeThemeText(settings.themeText),
     widgets: Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : []
   };
 }
@@ -582,6 +762,7 @@ app.post('/api/publish', async (req, res) => {
       ...post,
       content: renderMarkdown(post.content)
     }));
+    const publishNow = new Date();
 
     // 5. Load EJS layouts
     const indexEjsPath = path.join(activeTemplateDir, 'index.ejs');
@@ -596,16 +777,20 @@ app.post('/api/publish', async (req, res) => {
 
     // 6. Build index/home page
     logMsg("Compiling blog home page (index.html)...");
+    const homepageVariables = createDynamicVariables(settings, compiledPosts, null, publishNow);
+    const homepageText = resolveSettingsText(settings, homepageVariables);
     
     const homepageData = {
-      siteName: settings.siteName,
-      siteSubtitle: settings.siteSubtitle,
-      authorName: settings.authorName,
-      authorBio: settings.authorBio,
+      siteName: homepageText.siteName,
+      siteSubtitle: homepageText.siteSubtitle,
+      authorName: homepageText.authorName,
+      authorBio: homepageText.authorBio,
       authorAvatar: settings.authorAvatar,
       socialLinks: settings.socialLinks,
-      widgets: settings.widgets,
-      helpers: { upper: value => String(value || '').toUpperCase() },
+      themeText: settings.themeText,
+      widgets: resolveWidgets(settings.widgets, homepageVariables),
+      helpers: createTemplateHelpers(settings, homepageVariables),
+      variables: homepageVariables,
       posts: compiledPosts
     };
 
@@ -627,16 +812,20 @@ app.post('/api/publish', async (req, res) => {
       if (!fs.existsSync(singlePostDir)) {
         fs.mkdirSync(singlePostDir, { recursive: true });
       }
+      const singlePostVariables = createDynamicVariables(settings, compiledPosts, post, publishNow);
+      const singlePostText = resolveSettingsText(settings, singlePostVariables);
 
       const singlePostData = {
-        siteName: settings.siteName,
-        siteSubtitle: settings.siteSubtitle,
-        authorName: settings.authorName,
-        authorBio: settings.authorBio,
+        siteName: singlePostText.siteName,
+        siteSubtitle: singlePostText.siteSubtitle,
+        authorName: singlePostText.authorName,
+        authorBio: singlePostText.authorBio,
         authorAvatar: settings.authorAvatar,
         socialLinks: settings.socialLinks,
-        widgets: settings.widgets,
-        helpers: { upper: value => String(value || '').toUpperCase() },
+        themeText: settings.themeText,
+        widgets: resolveWidgets(settings.widgets, singlePostVariables),
+        helpers: createTemplateHelpers(settings, singlePostVariables),
+        variables: singlePostVariables,
         posts: compiledPosts,
         post: post
       };
@@ -662,6 +851,11 @@ app.post('/api/publish', async (req, res) => {
     if (fs.existsSync(COMMON_SEARCH_SCRIPT)) {
       fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(OUT_DIR, 'search.js'));
       logMsg("Copied shared search script (search.js).");
+    }
+
+    if (fs.existsSync(FAVICON_SOURCE)) {
+      fs.copyFileSync(FAVICON_SOURCE, path.join(OUT_DIR, 'favicon.svg'));
+      logMsg("Copied favicon asset (favicon.svg).");
     }
 
     // 9. Copy uploaded images

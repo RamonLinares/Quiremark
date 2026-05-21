@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= siteName %> | Home</title>
   <meta name="description" content="<%= siteSubtitle %>">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
@@ -27,15 +29,15 @@
 
   <div class="main-layout animate-fade-in">
     <main class="posts-feed">
-      <section class="search-panel" data-search-panel>
-        <label class="search-label" for="site-search">Search Archive</label>
-        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+      <section class="search-panel" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+        <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state vapor-panel">
-          <p>NO STATIC DATA SECTORS DETECTED.</p>
+          <p><%= helpers.copy('emptyState', 'NO STATIC DATA SECTORS DETECTED.') %></p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
@@ -57,7 +59,7 @@
                 <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
               </h2>
               <p class="post-excerpt"><%= post.description %></p>
-              <a href="/posts/<%= post.slug %>/index.html" class="read-more">LOAD ARTICLE_</a>
+              <a href="/posts/<%= post.slug %>/index.html" class="read-more"><%= helpers.copy('readMoreLabel', 'LOAD ARTICLE_') %></a>
             </div>
           </article>
         <% }) %>
@@ -124,16 +126,16 @@
             <h4 class="widget-title"><%= widget.name %></h4>
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
-                <p>Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.</p>
+                <p><%= helpers.copy('newsletterDescription', 'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
                     <input type="email" name="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
-                    <button type="submit">TRANSMIT</button>
+                    <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'TRANSMIT') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT.EXE' %>" disabled aria-label="Neon Email Terminal">
-                    <button type="button" disabled>CONFIG</button>
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT.EXE') %>" disabled aria-label="Neon Email Terminal">
+                    <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'CONFIG') %></button>
                   </form>
                 <% } %>
               </div>
@@ -142,8 +144,8 @@
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
-        <p class="credit">SYSTEM_ENGINE: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. <%= helpers.copy('footerRights', 'ALL PROTOCOLS SECURED.') %></p>
+        <p class="credit"><%= helpers.copy('footerCreditLabel', 'SYSTEM_ENGINE:') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>" class="footer-link"><%= helpers.copy('footerCreditText', '[ZENITH_PRESS]') %></a></p>
       </div>
     </div>
   </footer>
