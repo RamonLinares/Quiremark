@@ -532,4 +532,14 @@ a:hover {
     gap: 10px;
     align-items: flex-start;
   }
+
+  .newsletter-form {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .newsletter-form input,
+  .newsletter-form button {
+    width: 100%;
+  }
 }
