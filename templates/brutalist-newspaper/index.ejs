@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= siteName %> | Home</title>
+  <meta name="description" content="<%= siteSubtitle %>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="brutalist-theme">
+  <div class="newspaper-top-bar">
+    <span>VOL. <%= new Date().getFullYear() - 2020 %> NO. <%= new Date().getMonth() + 1 %></span>
+    <span class="pulse-marquee">EDITION: DIGITAL AESTHETICS</span>
+    <span><%= new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase() %></span>
+  </div>
+
+  <header class="blog-header brutalist-border-bottom">
+    <div class="header-container">
+      <h1 class="logo"><a href="/index.html"><%= siteName %></a></h1>
+      <p class="subtitle"><%= siteSubtitle.toUpperCase() %></p>
+    </div>
+  </header>
+
+  <div class="main-layout animate-slide-up">
+    <main class="posts-feed">
+      <% if (posts.length === 0) { %>
+        <div class="empty-state brutalist-card">
+          <p>NO ARTICLES REGISTERED IN ARCHIVES.</p>
+        </div>
+      <% } else { %>
+        <% posts.forEach((post, index) => { %>
+          <article class="post-card brutalist-card <%= index === 0 ? 'headline-story' : '' %>">
+            <% if (post.coverImage) { %>
+              <div class="post-image-container">
+                <a href="/posts/<%= post.slug %>/index.html">
+                  <img src="<%= post.coverImage %>" alt="<%= post.title %>" class="post-cover" loading="lazy">
+                </a>
+              </div>
+            <% } %>
+            <div class="post-card-content">
+              <div class="post-meta">
+                <span class="post-category"><%= post.category %></span>
+                <span class="meta-divider">/</span>
+                <span class="post-date"><%= post.date %></span>
+              </div>
+              <h2 class="post-title">
+                <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
+              </h2>
+              <p class="post-excerpt"><%= post.description %></p>
+              <div class="action-wrapper">
+                <a href="/posts/<%= post.slug %>/index.html" class="read-more">READ FULL STORY &rarr;</a>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      <% } %>
+    </main>
+
+    <aside class="blog-sidebar">
+      <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
+        <div class="widget widget-<%= widget.type %> brutalist-card" id="widget-<%= widget.id %>">
+          <h3 class="widget-title"><%= widget.name %></h3>
+          
+          <% if (widget.type === 'bio') { %>
+            <div class="bio-content">
+              <% if (authorAvatar) { %>
+                <div class="avatar-holder">
+                  <img src="<%= authorAvatar %>" alt="<%= authorName %>" class="bio-avatar">
+                </div>
+              <% } %>
+              <h4 class="bio-name"><%= authorName %></h4>
+              <p class="bio-text"><%= authorBio %></p>
+              <div class="bio-socials">
+                <% if (socialLinks.github) { %><a href="<%= socialLinks.github %>" target="_blank" rel="noopener">GITHUB</a><% } %>
+                <% if (socialLinks.twitter) { %><a href="<%= socialLinks.twitter %>" target="_blank" rel="noopener">TWITTER</a><% } %>
+                <% if (socialLinks.linkedin) { %><a href="<%= socialLinks.linkedin %>" target="_blank" rel="noopener">LINKEDIN</a><% } %>
+                <% if (socialLinks.instagram) { %><a href="<%= socialLinks.instagram %>" target="_blank" rel="noopener">INSTAGRAM</a><% } %>
+              </div>
+            </div>
+          <% } else if (widget.type === 'recent-posts') { %>
+            <ul class="recent-posts-list">
+              <% posts.slice(0, 5).forEach(p => { %>
+                <li>
+                  <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link">&bull; <%= p.title %></a>
+                  <span class="recent-post-date"><%= p.date %></span>
+                </li>
+              <% }) %>
+            </ul>
+          <% } else if (widget.type === 'tag-cloud') { %>
+            <div class="tag-cloud">
+              <% 
+                const tags = {};
+                posts.forEach(p => {
+                  if (p.tags) p.tags.forEach(t => { tags[t] = (tags[t] || 0) + 1 })
+                });
+              %>
+              <% Object.keys(tags).forEach(tag => { %>
+                <span class="tag-chip"><%= tag %> (<%= tags[tag] %>)</span>
+              <% }) %>
+            </div>
+          <% } else if (widget.type === 'custom-html') { %>
+            <div class="custom-html-content">
+              <%- widget.htmlContent || '' %>
+            </div>
+          <% } %>
+        </div>
+      <% }) %>
+    </aside>
+  </div>
+
+  <footer class="blog-footer brutalist-border-top">
+    <div class="footer-container">
+      <div class="footer-widgets">
+        <% widgets.filter(w => w.enabled && w.position === 'footer').forEach(widget => { %>
+          <div class="widget widget-<%= widget.type %> brutalist-card" id="widget-<%= widget.id %>">
+            <h4 class="widget-title"><%= widget.name %></h4>
+            <% if (widget.type === 'newsletter') { %>
+              <div class="newsletter-content">
+                <p>Subscribe to our wire updates. Delivered instantly to your visual cortex.</p>
+                <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('SUBSCRIBED WIRE: ' + email); this.reset();">
+                  <input type="email" placeholder="<%= widget.placeholderText || 'your.email@wire.com' %>" required aria-label="Newsletter input">
+                  <button type="submit">SUBSCRIBE</button>
+                </form>
+              </div>
+            <% } else if (widget.type === 'custom-html') { %>
+              <div class="custom-html-content">
+                <%- widget.htmlContent || '' %>
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; <%= new Date().getFullYear() %> <%= siteName.toUpperCase() %>. UNCOMPROMISING DIGITAL DISPATCH.</p>
+        <p class="credit">POWERED BY <a href="#" class="footer-link">ZENITH_PRESS</a></p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

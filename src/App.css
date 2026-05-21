@@ -651,6 +651,9 @@ body {
 .template-card-preview.minimalist { background: #faf9f6; color: #111; }
 .template-card-preview.neoglass { background: #06060c; color: #fff; }
 .template-card-preview.cyberpunk { background: #080808; color: #00ff66; }
+.template-card-preview.vaporwave { background: radial-gradient(circle at 50% 30%, #2e0854 0%, #0d0628 70%); color: #ff007f; }
+.template-card-preview.brutalist { background: #f6f5f0; color: #000; }
+.template-card-preview.ecoforest { background: #f2f3ec; color: #1d3b28; }
 
 .template-preview-badge {
   position: absolute;

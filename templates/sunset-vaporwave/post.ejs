@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= post.title %> | <%= siteName %></title>
+  <meta name="description" content="<%= post.description %>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="vaporwave-theme">
+  <!-- Vaporwave Sun Background Grid & Scanline overlays -->
+  <div class="synth-sky">
+    <div class="synth-sun"></div>
+  </div>
+  <div class="neon-grid"></div>
+  <div class="scanlines"></div>
+
+  <header class="blog-header vapor-panel">
+    <div class="header-container">
+      <p class="logo"><a href="/index.html"><%= siteName %></a></p>
+      <p class="subtitle">// <%= siteSubtitle %></p>
+    </div>
+  </header>
+
+  <div class="main-layout single-post-layout animate-fade-in">
+    <main class="post-detail">
+      <nav class="back-nav">
+        <a href="/index.html" class="back-link">[ BACK_TO_DIRECTORY ]</a>
+      </nav>
+
+      <article class="full-post vapor-panel">
+        <div class="post-meta">
+          <span class="post-category"><%= post.category.toUpperCase() %></span>
+          <span class="meta-divider">//</span>
+          <span class="post-date"><%= post.date %></span>
+        </div>
+        
+        <h1 class="post-title">> <%= post.title %></h1>
+        <p class="post-description">// <%= post.description %></p>
+
+        <% if (post.coverImage) { %>
+          <div class="post-cover-container">
+            <img src="<%= post.coverImage %>" alt="<%= post.title %>" class="post-detail-cover">
+          </div>
+        <% } %>
+
+        <div class="post-content markdown-body">
+          <%- post.content %>
+        </div>
+      </article>
+    </main>
+
+    <aside class="blog-sidebar">
+      <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
+        <div class="widget widget-<%= widget.type %> vapor-panel" id="widget-<%= widget.id %>">
+          <h3 class="widget-title"><%= widget.name %></h3>
+          
+          <% if (widget.type === 'bio') { %>
+            <div class="bio-content">
+              <% if (authorAvatar) { %>
+                <div class="avatar-neon">
+                  <img src="<%= authorAvatar %>" alt="<%= authorName %>" class="bio-avatar">
+                </div>
+              <% } %>
+              <h4 class="bio-name"><%= authorName %></h4>
+              <p class="bio-text"><%= authorBio %></p>
+              <div class="bio-socials">
+                <% if (socialLinks.github) { %><a href="<%= socialLinks.github %>" target="_blank" rel="noopener">[GITHUB]</a><% } %>
+                <% if (socialLinks.twitter) { %><a href="<%= socialLinks.twitter %>" target="_blank" rel="noopener">[TWITTER]</a><% } %>
+                <% if (socialLinks.linkedin) { %><a href="<%= socialLinks.linkedin %>" target="_blank" rel="noopener">[LINKEDIN]</a><% } %>
+                <% if (socialLinks.instagram) { %><a href="<%= socialLinks.instagram %>" target="_blank" rel="noopener">[INSTAGRAM]</a><% } %>
+              </div>
+            </div>
+          <% } else if (widget.type === 'recent-posts') { %>
+            <ul class="recent-posts-list">
+              <% posts.slice(0, 5).forEach(p => { %>
+                <li>
+                  <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link">> <%= p.title %></a>
+                  <span class="recent-post-date">// <%= p.date %></span>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      <% }) %>
+    </aside>
+  </div>
+
+  <footer class="blog-footer vapor-panel">
+    <div class="footer-container">
+      <div class="footer-widgets">
+        <% widgets.filter(w => w.enabled && w.position === 'footer').forEach(widget => { %>
+          <div class="widget widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+            <h4 class="widget-title"><%= widget.name %></h4>
+            <% if (widget.type === 'newsletter') { %>
+              <div class="newsletter-content">
+                <p>Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.</p>
+                <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('TRANSMISSION ALIGNED FOR: ' + email); this.reset();">
+                  <input type="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
+                  <button type="submit">TRANSMIT</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; <%= new Date().getFullYear() %> <%= siteName.toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
+        <p class="credit">SYSTEM_ENGINE: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

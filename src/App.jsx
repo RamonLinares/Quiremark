@@ -608,6 +608,51 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* Sunset Vaporwave Card */}
+                      <div 
+                        className={`template-card ${settings.selectedTemplate === 'sunset-vaporwave' ? 'active' : ''}`}
+                        onClick={() => saveSettings({ ...settings, selectedTemplate: 'sunset-vaporwave' })}
+                      >
+                        <div className="template-card-preview vaporwave">
+                          <span style={{ fontSize: '1.6rem', fontWeight: '900', color: '#ff007f', textShadow: '0 0 10px rgba(255, 0, 127, 0.8), 0 0 20px rgba(0, 240, 255, 0.6)', fontFamily: "'Orbitron', sans-serif" }}>NEON</span>
+                          {settings.selectedTemplate === 'sunset-vaporwave' && <span className="template-preview-badge">Active</span>}
+                        </div>
+                        <div className="template-card-info">
+                          <h4>Sunset Vaporwave Theme</h4>
+                          <p>Retro-futuristic synthwave theme with deep violet skies, animated perspective neon grids, and glowing glass panels.</p>
+                        </div>
+                      </div>
+
+                      {/* Brutalist Newspaper Card */}
+                      <div 
+                        className={`template-card ${settings.selectedTemplate === 'brutalist-newspaper' ? 'active' : ''}`}
+                        onClick={() => saveSettings({ ...settings, selectedTemplate: 'brutalist-newspaper' })}
+                      >
+                        <div className="template-card-preview brutalist">
+                          <span style={{ fontSize: '1.3rem', fontWeight: '800', border: '3px solid #000', padding: '4px 8px', background: '#ffff00', color: '#000', boxShadow: '4px 4px 0 #000', fontFamily: "'Space Grotesk', sans-serif" }}>ZINE</span>
+                          {settings.selectedTemplate === 'brutalist-newspaper' && <span className="template-preview-badge">Active</span>}
+                        </div>
+                        <div className="template-card-info">
+                          <h4>Brutalist Newspaper Theme</h4>
+                          <p>Bold, raw, high-contrast publication design with heavy borders, zine-like grids, and flat block shadows.</p>
+                        </div>
+                      </div>
+
+                      {/* Eco-Forest Minimalist Card */}
+                      <div 
+                        className={`template-card ${settings.selectedTemplate === 'eco-forest' ? 'active' : ''}`}
+                        onClick={() => saveSettings({ ...settings, selectedTemplate: 'eco-forest' })}
+                      >
+                        <div className="template-card-preview ecoforest">
+                          <span style={{ fontSize: '1.6rem', fontWeight: '600', fontStyle: 'italic', color: '#1d3b28', fontFamily: 'Lora, serif' }}>Forest</span>
+                          {settings.selectedTemplate === 'eco-forest' && <span className="template-preview-badge">Active</span>}
+                        </div>
+                        <div className="template-card-info">
+                          <h4>Eco-Forest Minimalist Theme</h4>
+                          <p>Warm, serene editorial design with organic sage palette, humanist serifs, and spacious breathing margins.</p>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
 
