@@ -9,6 +9,7 @@
 - **Authenticated local API**: Login issues an expiring bearer token, and all non-login `/api/*` routes require it.
 - **Safer static compiler**: Markdown is sanitized before template injection, slugs are validated, and output paths are constrained to the expected folders.
 - **Client-side search**: Publish generates `out/search.json` and `out/search.js`, and every index template renders a search box that filters visible posts and shows linked results.
+- **Multilingual public UI**: The website locale controls built-in theme labels, date/time formatting, search text, newsletter copy, footer copy, and default widget labels. Post content is left exactly as authored.
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
 - **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
 - **GitHub Pages deployer**: The local backend deploys `out/` to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
@@ -53,6 +54,14 @@ ADMIN_SESSION_TTL_MS=28800000
 
 Set `ADMIN_PASSWORD` before using the admin dashboard beyond local testing.
 
+Locale is a top-level site setting:
+
+```json
+{
+  "locale": "en"
+}
+```
+
 Newsletter widgets support:
 
 ```json
@@ -64,6 +73,8 @@ Newsletter widgets support:
 ```
 
 The generated static site submits a single `email` field with `method="post"` to `actionUrl`.
+
+Supported website locales are `en`, `es`, `fr`, `de`, and `pt`. Locale is stored as `locale` in `content/settings.json` and can be changed from **Site Settings** in the admin. Theme defaults and exact default widget labels are localized; custom copy overrides and Markdown post content are not machine-translated.
 
 Theme text overrides are stored under `themeText` in `content/settings.json`. Empty strings use the active template's default wording. Dynamic variables can be used in theme copy, `siteSubtitle`, `authorBio`, widget titles, newsletter placeholders, and custom HTML widgets:
 
@@ -81,11 +92,11 @@ Theme text overrides are stored under `themeText` in `content/settings.json`. Em
 Supported variables include:
 
 - `{date}`, `{time}`, `{generatedAt}`, `{isoDate}`, `{year}`, `{month}`, `{day}`
-- `{siteName}`, `{siteSubtitle}`, `{authorName}`, `{authorBio}`, `{template}`, `{homeUrl}`, `{postCount}`
-- `{lastPost}`, `{lastPostUrl}`, `{lastPostTitle}`, `{lastPostDescription}`, `{lastPostDate}`, `{lastPostCategory}`, `{lastPostTags}`, `{lastPostReadingTime}`
-- `{post}`, `{postUrl}`, `{postTitle}`, `{postDescription}`, `{postDate}`, `{postCategory}`, `{postTags}`, `{postReadingTime}`
+- `{locale}`, `{language}`, `{siteName}`, `{siteSubtitle}`, `{authorName}`, `{authorBio}`, `{template}`, `{homeUrl}`, `{postCount}`
+- `{lastPost}`, `{lastPostUrl}`, `{lastPostTitle}`, `{lastPostDescription}`, `{lastPostDate}`, `{lastPostIsoDate}`, `{lastPostCategory}`, `{lastPostTags}`, `{lastPostReadingTime}`
+- `{post}`, `{postUrl}`, `{postTitle}`, `{postDescription}`, `{postDate}`, `{postIsoDate}`, `{postCategory}`, `{postTags}`, `{postReadingTime}`
 
-`{lastPost}` is the generated URL for the newest published post. `{post*}` variables resolve on individual post pages and are blank on index pages.
+`{date}`, `{time}`, `{generatedAt}`, `{month}`, `{lastPostDate}`, and `{postDate}` use the website locale. `{lastPost}` is the generated URL for the newest published post. `{post*}` variables resolve on individual post pages and are blank on index pages.
 
 ## Static Publishing
 

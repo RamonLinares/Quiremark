@@ -29,6 +29,14 @@ const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SAFE_BRANCH_RE = /^(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,128}$/;
 const SAFE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
 const DYNAMIC_VARIABLE_RE = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
+const DEFAULT_LOCALE = 'en';
+const SUPPORTED_LOCALES = {
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  pt: 'Português'
+};
 const THEME_TEXT_KEYS = [
   'searchLabel',
   'searchPlaceholder',
@@ -42,14 +50,320 @@ const THEME_TEXT_KEYS = [
   'footerTerminalTitle',
   'newsletterDescription',
   'newsletterSubmitLabel',
+  'newsletterPlaceholder',
   'newsletterDisabledPlaceholder',
   'newsletterDisabledLabel',
+  'newsletterEmailLabel',
   'footerRights',
   'footerCreditLabel',
   'footerCreditText',
   'footerCreditUrl'
 ];
 const LONG_THEME_TEXT_KEYS = new Set(['newsletterDescription', 'footerRights']);
+const TRANSLATIONS = {
+  es: {
+    'Home': 'Inicio',
+    'VOL.': 'VOL.',
+    'NO.': 'N.º',
+    'Search Archive': 'Buscar en el archivo',
+    'Search posts, categories, or tags...': 'Buscar publicaciones, categorías o etiquetas...',
+    'No matching posts found.': 'No se encontraron publicaciones coincidentes.',
+    'No posts published yet.': 'Aún no hay publicaciones.',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[ERROR: NO_HAY_PUBLICACIONES_EN_EL_SECTOR]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': 'NO HAY ARTÍCULOS REGISTRADOS EN EL ARCHIVO.',
+    'No publications found in the forest archives.': 'No se encontraron publicaciones en los archivos del bosque.',
+    'NO STATIC DATA SECTORS DETECTED.': 'NO SE DETECTARON SECTORES DE DATOS ESTÁTICOS.',
+    'Read Entry →': 'Leer entrada →',
+    'Explore Article →': 'Explorar artículo →',
+    '[ EXECUTE_POST_READER ]': '[ EJECUTAR_LECTOR ]',
+    'READ FULL STORY →': 'LEER HISTORIA COMPLETA →',
+    'CONTINUE READING': 'SEGUIR LEYENDO',
+    'LOAD ARTICLE_': 'CARGAR ARTÍCULO_',
+    '← Back to Musings': '← Volver a reflexiones',
+    '← Back to Dashboard': '← Volver al panel',
+    '[ BACK_TO_DIRECTORY ]': '[ VOLVER_AL_DIRECTORIO ]',
+    '← BACK TO GAZETTE DIRECTORY': '← VOLVER AL DIRECTORIO DE LA GACETA',
+    '← BACK TO TREE HIERARCHY': '← VOLVER A LA JERARQUÍA',
+    'System Status: ONLINE': 'Estado del sistema: EN LÍNEA',
+    'EDITION: DIGITAL AESTHETICS': 'EDICIÓN: ESTÉTICA DIGITAL',
+    'Subscribe for the latest design & dev updates directly to your inbox.': 'Suscríbete para recibir las últimas novedades de diseño y desarrollo en tu correo.',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': 'Suscríbete a entregas semanales de diseño, código y estética futurista.',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': 'CONECTAR AL FLUJO DE BOLETÍN DEL SECTOR.',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': 'Suscríbete a nuestras actualizaciones. Entrega instantánea a tu córtex visual.',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': 'Únete al claro. Recibe nuestra carta mensual sobre arte, diseño y vida consciente.',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': 'Suscríbete para transmitir los últimos registros de estética digital a tu terminal matriz.',
+    'Your email address': 'Tu correo electrónico',
+    'Email address': 'Correo electrónico',
+    'admin@domain.com': 'admin@dominio.com',
+    'your.email@wire.com': 'tu.email@cable.com',
+    'your.email@nature.com': 'tu.email@naturaleza.com',
+    'SYSTEM@DOMAIN.EXE': 'SISTEMA@DOMINIO.EXE',
+    'Subscribe': 'Suscribirse',
+    'SUBSCRIBE': 'SUSCRIBIRSE',
+    '[ INJECT ]': '[ INYECTAR ]',
+    'JOIN LETTERS': 'UNIRSE',
+    'TRANSMIT': 'TRANSMITIR',
+    'Configure newsletter endpoint': 'Configura el endpoint del boletín',
+    'CONFIGURE_ENDPOINT': 'CONFIGURAR_ENDPOINT',
+    'CONFIGURE WIRE ENDPOINT': 'CONFIGURAR ENDPOINT',
+    'CONFIGURE_ENDPOINT.EXE': 'CONFIGURAR_ENDPOINT.EXE',
+    'Configure': 'Configurar',
+    'CONFIGURE': 'CONFIGURAR',
+    '[ CONFIG ]': '[ CONFIGURAR ]',
+    'CONFIG': 'CONFIGURAR',
+    'Email Address': 'Correo electrónico',
+    'Terminal Email Address': 'Correo de terminal',
+    'Newsletter input': 'Entrada del boletín',
+    'E-mail for newsletter': 'Correo para el boletín',
+    'Neon Email Terminal': 'Terminal de correo neón',
+    'All rights reserved.': 'Todos los derechos reservados.',
+    'ALL RIGHTS SECURED.': 'TODOS LOS DERECHOS ASEGURADOS.',
+    'UNCOMPROMISING DIGITAL DISPATCH.': 'DESPACHO DIGITAL SIN CONCESIONES.',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': 'SOSTENIDO EN ARMONÍA CON ECOSISTEMAS DIGITALES.',
+    'ALL PROTOCOLS SECURED.': 'TODOS LOS PROTOCOLOS ASEGURADOS.',
+    'Powered by': 'Creado con',
+    'POWERED BY': 'CREADO CON',
+    'COMPILED_BY:': 'COMPILADO_POR:',
+    'DESIGNED ON': 'DISEÑADO EN',
+    'SYSTEM_ENGINE:': 'MOTOR_DEL_SISTEMA:',
+    'NAME:': 'NOMBRE:',
+    'About Me': 'Sobre mí',
+    'Recent Posts': 'Publicaciones recientes',
+    'Recent Musings': 'Reflexiones recientes',
+    'Topics': 'Temas',
+    'Newsletter': 'Boletín',
+    'Inner Circle Newsletter': 'Boletín del círculo interno',
+    'Custom HTML Block': 'Bloque HTML personalizado',
+    'Enter your email...': 'Introduce tu correo...',
+    'Enter your email for weekly updates...': 'Introduce tu correo para recibir novedades semanales...'
+  },
+  fr: {
+    'Home': 'Accueil',
+    'VOL.': 'VOL.',
+    'NO.': 'N°',
+    'Search Archive': 'Rechercher dans les archives',
+    'Search posts, categories, or tags...': 'Rechercher des articles, catégories ou tags...',
+    'No matching posts found.': 'Aucun article correspondant trouvé.',
+    'No posts published yet.': 'Aucun article publié pour le moment.',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[ERREUR: AUCUN_ARTICLE_DANS_LE_SECTEUR]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': 'AUCUN ARTICLE ENREGISTRÉ DANS LES ARCHIVES.',
+    'No publications found in the forest archives.': 'Aucune publication trouvée dans les archives forestières.',
+    'NO STATIC DATA SECTORS DETECTED.': 'AUCUN SECTEUR DE DONNÉES STATIQUES DÉTECTÉ.',
+    'Read Entry →': 'Lire l’entrée →',
+    'Explore Article →': 'Explorer l’article →',
+    '[ EXECUTE_POST_READER ]': '[ LANCER_LECTEUR ]',
+    'READ FULL STORY →': 'LIRE L’ARTICLE COMPLET →',
+    'CONTINUE READING': 'CONTINUER LA LECTURE',
+    'LOAD ARTICLE_': 'CHARGER_ARTICLE_',
+    '← Back to Musings': '← Retour aux réflexions',
+    '← Back to Dashboard': '← Retour au tableau',
+    '[ BACK_TO_DIRECTORY ]': '[ RETOUR_AU_RÉPERTOIRE ]',
+    '← BACK TO GAZETTE DIRECTORY': '← RETOUR AU RÉPERTOIRE DE LA GAZETTE',
+    '← BACK TO TREE HIERARCHY': '← RETOUR À LA HIÉRARCHIE',
+    'System Status: ONLINE': 'État du système : EN LIGNE',
+    'EDITION: DIGITAL AESTHETICS': 'ÉDITION : ESTHÉTIQUE NUMÉRIQUE',
+    'Subscribe for the latest design & dev updates directly to your inbox.': 'Abonnez-vous pour recevoir les dernières nouvelles design et dev.',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': 'Abonnez-vous aux envois hebdomadaires de design, code et esthétique futuriste.',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': 'CONNEXION AU FLUX NEWSLETTER DU SECTEUR.',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': 'Abonnez-vous à nos dépêches. Livraison instantanée à votre cortex visuel.',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': 'Rejoignez la clairière. Recevez notre lettre mensuelle sur l’art, le design et la vie consciente.',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': 'Abonnez-vous pour transmettre les derniers journaux esthétiques numériques à votre terminal matriciel.',
+    'Your email address': 'Votre adresse e-mail',
+    'Email address': 'Adresse e-mail',
+    'Subscribe': 'S’abonner',
+    'SUBSCRIBE': 'S’ABONNER',
+    '[ INJECT ]': '[ INJECTER ]',
+    'JOIN LETTERS': 'REJOINDRE',
+    'TRANSMIT': 'TRANSMETTRE',
+    'Configure newsletter endpoint': 'Configurer le point de terminaison',
+    'Configure': 'Configurer',
+    'CONFIGURE': 'CONFIGURER',
+    '[ CONFIG ]': '[ CONFIGURER ]',
+    'CONFIG': 'CONFIGURER',
+    'Email Address': 'Adresse e-mail',
+    'Terminal Email Address': 'Adresse e-mail terminal',
+    'Newsletter input': 'Champ newsletter',
+    'E-mail for newsletter': 'E-mail pour la newsletter',
+    'Neon Email Terminal': 'Terminal e-mail néon',
+    'All rights reserved.': 'Tous droits réservés.',
+    'ALL RIGHTS SECURED.': 'TOUS DROITS SÉCURISÉS.',
+    'UNCOMPROMISING DIGITAL DISPATCH.': 'DÉPÊCHE NUMÉRIQUE SANS COMPROMIS.',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': 'SOUTENU EN HARMONIE AVEC LES ÉCOSYSTÈMES NUMÉRIQUES.',
+    'ALL PROTOCOLS SECURED.': 'TOUS LES PROTOCOLES SÉCURISÉS.',
+    'Powered by': 'Propulsé par',
+    'POWERED BY': 'PROPULSÉ PAR',
+    'COMPILED_BY:': 'COMPILÉ_PAR :',
+    'DESIGNED ON': 'CONÇU SUR',
+    'SYSTEM_ENGINE:': 'MOTEUR_SYSTÈME :',
+    'NAME:': 'NOM :',
+    'About Me': 'À propos',
+    'Recent Posts': 'Articles récents',
+    'Recent Musings': 'Réflexions récentes',
+    'Topics': 'Sujets',
+    'Newsletter': 'Newsletter',
+    'Inner Circle Newsletter': 'Newsletter du cercle privé',
+    'Custom HTML Block': 'Bloc HTML personnalisé',
+    'admin@domain.com': 'admin@domaine.com',
+    'your.email@wire.com': 'votre.email@fil.com',
+    'your.email@nature.com': 'votre.email@nature.com',
+    'SYSTEM@DOMAIN.EXE': 'SYSTEME@DOMAINE.EXE',
+    'CONFIGURE_ENDPOINT': 'CONFIGURER_ENDPOINT',
+    'CONFIGURE WIRE ENDPOINT': 'CONFIGURER LE POINT FILAIRE',
+    'CONFIGURE_ENDPOINT.EXE': 'CONFIGURER_ENDPOINT.EXE',
+    'Enter your email...': 'Entrez votre e-mail...',
+    'Enter your email for weekly updates...': 'Entrez votre e-mail pour les mises à jour hebdomadaires...'
+  },
+  de: {
+    'Home': 'Startseite',
+    'NO.': 'NR.',
+    'Search Archive': 'Archiv durchsuchen',
+    'Search posts, categories, or tags...': 'Beiträge, Kategorien oder Tags suchen...',
+    'No matching posts found.': 'Keine passenden Beiträge gefunden.',
+    'No posts published yet.': 'Noch keine Beiträge veröffentlicht.',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[FEHLER: KEINE_BEITRÄGE_IM_SEKTOR]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': 'KEINE ARTIKEL IM ARCHIV REGISTRIERT.',
+    'No publications found in the forest archives.': 'Keine Veröffentlichungen im Waldarchiv gefunden.',
+    'NO STATIC DATA SECTORS DETECTED.': 'KEINE STATISCHEN DATENSEKTOREN ERKANNT.',
+    'Read Entry →': 'Eintrag lesen →',
+    'Explore Article →': 'Artikel ansehen →',
+    '[ EXECUTE_POST_READER ]': '[ LESER_STARTEN ]',
+    'READ FULL STORY →': 'GANZEN ARTIKEL LESEN →',
+    'CONTINUE READING': 'WEITERLESEN',
+    'LOAD ARTICLE_': 'ARTIKEL_LADEN_',
+    '← Back to Musings': '← Zurück zu Gedanken',
+    '← Back to Dashboard': '← Zurück zum Dashboard',
+    '[ BACK_TO_DIRECTORY ]': '[ ZURÜCK_ZUM_VERZEICHNIS ]',
+    '← BACK TO GAZETTE DIRECTORY': '← ZURÜCK ZUM GAZETTENVERZEICHNIS',
+    '← BACK TO TREE HIERARCHY': '← ZURÜCK ZUR HIERARCHIE',
+    'System Status: ONLINE': 'Systemstatus: ONLINE',
+    'EDITION: DIGITAL AESTHETICS': 'AUSGABE: DIGITALE ÄSTHETIK',
+    'Subscribe for the latest design & dev updates directly to your inbox.': 'Abonnieren Sie die neuesten Design- und Dev-Updates direkt per E-Mail.',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': 'Abonnieren Sie wöchentliche Updates zu Design, Code und futuristischer Ästhetik.',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': 'MIT DEM SEKTOR-NEWSLETTER-STREAM VERBINDEN.',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': 'Abonnieren Sie unsere Drahtmeldungen. Sofort an Ihren visuellen Cortex geliefert.',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': 'Treten Sie der Lichtung bei. Erhalten Sie unseren Monatsbrief über Kunst, Design und achtsames Leben.',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': 'Abonnieren Sie die neuesten digitalen Ästhetik-Logs direkt an Ihr Matrix-Terminal.',
+    'Your email address': 'Ihre E-Mail-Adresse',
+    'Email address': 'E-Mail-Adresse',
+    'Subscribe': 'Abonnieren',
+    'SUBSCRIBE': 'ABONNIEREN',
+    '[ INJECT ]': '[ INJIZIEREN ]',
+    'JOIN LETTERS': 'BRIEFE ABONNIEREN',
+    'TRANSMIT': 'ÜBERTRAGEN',
+    'Configure newsletter endpoint': 'Newsletter-Endpunkt konfigurieren',
+    'Configure': 'Konfigurieren',
+    'CONFIGURE': 'KONFIGURIEREN',
+    '[ CONFIG ]': '[ KONFIG ]',
+    'CONFIG': 'KONFIG',
+    'Email Address': 'E-Mail-Adresse',
+    'Terminal Email Address': 'Terminal-E-Mail-Adresse',
+    'Newsletter input': 'Newsletter-Eingabe',
+    'E-mail for newsletter': 'E-Mail für Newsletter',
+    'Neon Email Terminal': 'Neon-E-Mail-Terminal',
+    'All rights reserved.': 'Alle Rechte vorbehalten.',
+    'ALL RIGHTS SECURED.': 'ALLE RECHTE GESICHERT.',
+    'UNCOMPROMISING DIGITAL DISPATCH.': 'KOMPROMISSLOSE DIGITALE DEPESCHE.',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': 'IM EINKLANG MIT DIGITALEN ÖKOSYSTEMEN GETRAGEN.',
+    'ALL PROTOCOLS SECURED.': 'ALLE PROTOKOLLE GESICHERT.',
+    'Powered by': 'Bereitgestellt von',
+    'POWERED BY': 'BEREITGESTELLT VON',
+    'COMPILED_BY:': 'KOMPILIERT_VON:',
+    'DESIGNED ON': 'GESTALTET MIT',
+    'SYSTEM_ENGINE:': 'SYSTEM_ENGINE:',
+    'NAME:': 'NAME:',
+    'About Me': 'Über mich',
+    'Recent Posts': 'Neueste Beiträge',
+    'Recent Musings': 'Neueste Gedanken',
+    'Topics': 'Themen',
+    'Newsletter': 'Newsletter',
+    'Inner Circle Newsletter': 'Inner-Circle-Newsletter',
+    'Custom HTML Block': 'Benutzerdefinierter HTML-Block',
+    'admin@domain.com': 'admin@domain.de',
+    'your.email@wire.com': 'deine.email@draht.de',
+    'your.email@nature.com': 'deine.email@natur.de',
+    'SYSTEM@DOMAIN.EXE': 'SYSTEM@DOMAIN.EXE',
+    'CONFIGURE_ENDPOINT': 'ENDPUNKT_KONFIGURIEREN',
+    'CONFIGURE WIRE ENDPOINT': 'DRAHT-ENDPUNKT KONFIGURIEREN',
+    'CONFIGURE_ENDPOINT.EXE': 'ENDPUNKT_KONFIGURIEREN.EXE',
+    'Enter your email...': 'E-Mail eingeben...',
+    'Enter your email for weekly updates...': 'E-Mail für wöchentliche Updates eingeben...'
+  },
+  pt: {
+    'Home': 'Início',
+    'NO.': 'N.º',
+    'Search Archive': 'Pesquisar no arquivo',
+    'Search posts, categories, or tags...': 'Pesquisar posts, categorias ou tags...',
+    'No matching posts found.': 'Nenhum post correspondente encontrado.',
+    'No posts published yet.': 'Ainda não há posts publicados.',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[ERRO: NENHUM_POST_NO_SETOR]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': 'NENHUM ARTIGO REGISTRADO NOS ARQUIVOS.',
+    'No publications found in the forest archives.': 'Nenhuma publicação encontrada nos arquivos da floresta.',
+    'NO STATIC DATA SECTORS DETECTED.': 'NENHUM SETOR DE DADOS ESTÁTICOS DETECTADO.',
+    'Read Entry →': 'Ler entrada →',
+    'Explore Article →': 'Explorar artigo →',
+    '[ EXECUTE_POST_READER ]': '[ EXECUTAR_LEITOR ]',
+    'READ FULL STORY →': 'LER HISTÓRIA COMPLETA →',
+    'CONTINUE READING': 'CONTINUAR LENDO',
+    'LOAD ARTICLE_': 'CARREGAR_ARTIGO_',
+    '← Back to Musings': '← Voltar às reflexões',
+    '← Back to Dashboard': '← Voltar ao painel',
+    '[ BACK_TO_DIRECTORY ]': '[ VOLTAR_AO_DIRETÓRIO ]',
+    '← BACK TO GAZETTE DIRECTORY': '← VOLTAR AO DIRETÓRIO DA GAZETA',
+    '← BACK TO TREE HIERARCHY': '← VOLTAR À HIERARQUIA',
+    'System Status: ONLINE': 'Status do sistema: ONLINE',
+    'EDITION: DIGITAL AESTHETICS': 'EDIÇÃO: ESTÉTICA DIGITAL',
+    'Subscribe for the latest design & dev updates directly to your inbox.': 'Assine para receber as últimas novidades de design e desenvolvimento no seu e-mail.',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': 'Assine envios semanais sobre design, código e estética futurista.',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': 'CONECTAR AO FLUXO DE NEWSLETTER DO SETOR.',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': 'Assine nossas atualizações. Entrega instantânea ao seu córtex visual.',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': 'Junte-se à clareira. Receba nossa carta mensal sobre arte, design e vida consciente.',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': 'Assine para transmitir os logs de estética digital mais recentes ao seu terminal matriz.',
+    'Your email address': 'Seu endereço de e-mail',
+    'Email address': 'Endereço de e-mail',
+    'Subscribe': 'Assinar',
+    'SUBSCRIBE': 'ASSINAR',
+    '[ INJECT ]': '[ INJETAR ]',
+    'JOIN LETTERS': 'ASSINAR CARTAS',
+    'TRANSMIT': 'TRANSMITIR',
+    'Configure newsletter endpoint': 'Configure o endpoint da newsletter',
+    'Configure': 'Configurar',
+    'CONFIGURE': 'CONFIGURAR',
+    '[ CONFIG ]': '[ CONFIGURAR ]',
+    'CONFIG': 'CONFIGURAR',
+    'Email Address': 'Endereço de e-mail',
+    'Terminal Email Address': 'Endereço de e-mail do terminal',
+    'Newsletter input': 'Campo da newsletter',
+    'E-mail for newsletter': 'E-mail para newsletter',
+    'Neon Email Terminal': 'Terminal de e-mail neon',
+    'All rights reserved.': 'Todos os direitos reservados.',
+    'ALL RIGHTS SECURED.': 'TODOS OS DIREITOS PROTEGIDOS.',
+    'UNCOMPROMISING DIGITAL DISPATCH.': 'DESPACHO DIGITAL SEM CONCESSÕES.',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': 'SUSTENTADO EM HARMONIA COM ECOSSISTEMAS DIGITAIS.',
+    'ALL PROTOCOLS SECURED.': 'TODOS OS PROTOCOLOS PROTEGIDOS.',
+    'Powered by': 'Criado com',
+    'POWERED BY': 'CRIADO COM',
+    'COMPILED_BY:': 'COMPILADO_POR:',
+    'DESIGNED ON': 'DESENHADO EM',
+    'SYSTEM_ENGINE:': 'MOTOR_DO_SISTEMA:',
+    'NAME:': 'NOME:',
+    'About Me': 'Sobre mim',
+    'Recent Posts': 'Posts recentes',
+    'Recent Musings': 'Reflexões recentes',
+    'Topics': 'Tópicos',
+    'Newsletter': 'Newsletter',
+    'Inner Circle Newsletter': 'Newsletter do círculo interno',
+    'Custom HTML Block': 'Bloco HTML personalizado',
+    'admin@domain.com': 'admin@dominio.com',
+    'your.email@wire.com': 'seu.email@fio.com',
+    'your.email@nature.com': 'seu.email@natureza.com',
+    'SYSTEM@DOMAIN.EXE': 'SISTEMA@DOMINIO.EXE',
+    'CONFIGURE_ENDPOINT': 'CONFIGURAR_ENDPOINT',
+    'CONFIGURE WIRE ENDPOINT': 'CONFIGURAR ENDPOINT',
+    'CONFIGURE_ENDPOINT.EXE': 'CONFIGURAR_ENDPOINT.EXE',
+    'Enter your email...': 'Digite seu e-mail...',
+    'Enter your email for weekly updates...': 'Digite seu e-mail para atualizações semanais...'
+  }
+};
 
 // Middleware configurations
 app.use(cors({
@@ -116,6 +430,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     authorAvatar: "",
     socialLinks: { github: "", twitter: "", linkedin: "", instagram: "" },
     selectedTemplate: "nordic-minimal",
+    locale: DEFAULT_LOCALE,
     themeText: normalizeThemeText(),
     widgets: [
       { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
@@ -282,14 +597,51 @@ function formatPostTags(post) {
   return normalizeTags(post?.tags).join(', ');
 }
 
+function normalizeLocale(locale) {
+  const value = String(locale || DEFAULT_LOCALE)
+    .trim()
+    .toLowerCase()
+    .replace('_', '-');
+  const baseLocale = value.split('-')[0];
+  return Object.prototype.hasOwnProperty.call(SUPPORTED_LOCALES, baseLocale)
+    ? baseLocale
+    : DEFAULT_LOCALE;
+}
+
+function translateText(value, locale) {
+  const text = String(value || '');
+  const normalizedLocale = normalizeLocale(locale);
+  if (normalizedLocale === DEFAULT_LOCALE) return text;
+  return TRANSLATIONS[normalizedLocale]?.[text] || text;
+}
+
+function parseDateValue(value) {
+  if (value instanceof Date) return value;
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateForLocale(value, locale, options = { dateStyle: 'medium' }) {
+  const date = parseDateValue(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat(normalizeLocale(locale), options).format(date);
+}
+
 function createDynamicVariables(settings, posts = [], currentPost = null, now = new Date()) {
   const latestPost = posts[0] || null;
   const currentUrl = postUrl(currentPost);
   const latestUrl = postUrl(latestPost);
-  const date = new Intl.DateTimeFormat('en-US', { dateStyle: 'long' }).format(now);
-  const time = new Intl.DateTimeFormat('en-US', { timeStyle: 'short' }).format(now);
-  const month = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(now);
-  const day = new Intl.DateTimeFormat('en-US', { day: '2-digit' }).format(now);
+  const locale = normalizeLocale(settings.locale);
+  const date = formatDateForLocale(now, locale, { dateStyle: 'long' });
+  const time = formatDateForLocale(now, locale, { timeStyle: 'short' });
+  const month = formatDateForLocale(now, locale, { month: 'long' });
+  const day = formatDateForLocale(now, locale, { day: '2-digit' });
 
   return {
     date,
@@ -303,6 +655,8 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     siteSubtitle: settings.siteSubtitle,
     authorName: settings.authorName,
     authorBio: settings.authorBio,
+    locale,
+    language: SUPPORTED_LOCALES[locale],
     template: settings.selectedTemplate,
     homeUrl: '/index.html',
     postCount: String(posts.length),
@@ -311,7 +665,8 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     lastPostSlug: latestPost?.slug || '',
     lastPostTitle: latestPost?.title || '',
     lastPostDescription: latestPost?.description || '',
-    lastPostDate: latestPost?.date || '',
+    lastPostDate: latestPost ? formatDateForLocale(latestPost.date, locale) : '',
+    lastPostIsoDate: latestPost?.date || '',
     lastPostCategory: latestPost?.category || '',
     lastPostTags: formatPostTags(latestPost),
     lastPostReadingTime: latestPost?.readingTime ? String(latestPost.readingTime) : '',
@@ -323,16 +678,19 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     postSlug: currentPost?.slug || '',
     postTitle: currentPost?.title || '',
     postDescription: currentPost?.description || '',
-    postDate: currentPost?.date || '',
+    postDate: currentPost ? formatDateForLocale(currentPost.date, locale) : '',
+    postIsoDate: currentPost?.date || '',
     postCategory: currentPost?.category || '',
     postTags: formatPostTags(currentPost),
     postReadingTime: currentPost?.readingTime ? String(currentPost.readingTime) : ''
   };
 }
 
-function resolveThemeTextCopy(themeText, key, fallback = '', variables = {}) {
-  const value = themeText?.[key];
-  const rawValue = typeof value === 'string' && value.trim() ? value : fallback;
+function resolveThemeTextCopy(settings, key, fallback = '', variables = {}) {
+  const value = settings.themeText?.[key];
+  const rawValue = typeof value === 'string' && value.trim()
+    ? value
+    : translateText(fallback, settings.locale);
   const resolved = resolveTemplateVariables(rawValue, variables);
   if (key === 'footerCreditUrl') {
     return normalizeThemeTextUrl(resolved) || normalizeThemeTextUrl(fallback) || '#';
@@ -349,11 +707,11 @@ function resolveSettingsText(settings, variables) {
   };
 }
 
-function resolveWidgets(widgets, variables) {
+function resolveWidgets(widgets, variables, locale) {
   return widgets.map(widget => ({
     ...widget,
-    name: resolveTemplateVariables(widget.name, variables),
-    placeholderText: resolveTemplateVariables(widget.placeholderText, variables),
+    name: resolveTemplateVariables(translateText(widget.name, locale), variables),
+    placeholderText: resolveTemplateVariables(translateText(widget.placeholderText, locale), variables),
     htmlContent: resolveTemplateVariables(widget.htmlContent, variables, { escapeValues: true })
   }));
 }
@@ -361,7 +719,15 @@ function resolveWidgets(widgets, variables) {
 function createTemplateHelpers(settings, variables) {
   return {
     upper: value => String(value || '').toUpperCase(),
-    copy: (key, fallback = '') => resolveThemeTextCopy(settings.themeText, key, fallback, variables)
+    t: value => resolveTemplateVariables(translateText(value, settings.locale), variables),
+    copy: (key, fallback = '') => resolveThemeTextCopy(settings, key, fallback, variables),
+    date: value => formatDateForLocale(value, settings.locale),
+    longDate: value => formatDateForLocale(value, settings.locale, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
   };
 }
 
@@ -394,6 +760,7 @@ function normalizeSettings(settings = {}) {
       instagram: settings.socialLinks?.instagram || ''
     },
     selectedTemplate: String(settings.selectedTemplate || 'nordic-minimal'),
+    locale: normalizeLocale(settings.locale),
     themeText: normalizeThemeText(settings.themeText),
     widgets: Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : []
   };
@@ -787,8 +1154,9 @@ app.post('/api/publish', async (req, res) => {
       authorBio: homepageText.authorBio,
       authorAvatar: settings.authorAvatar,
       socialLinks: settings.socialLinks,
+      locale: settings.locale,
       themeText: settings.themeText,
-      widgets: resolveWidgets(settings.widgets, homepageVariables),
+      widgets: resolveWidgets(settings.widgets, homepageVariables, settings.locale),
       helpers: createTemplateHelpers(settings, homepageVariables),
       variables: homepageVariables,
       posts: compiledPosts
@@ -822,8 +1190,9 @@ app.post('/api/publish', async (req, res) => {
         authorBio: singlePostText.authorBio,
         authorAvatar: settings.authorAvatar,
         socialLinks: settings.socialLinks,
+        locale: settings.locale,
         themeText: settings.themeText,
-        widgets: resolveWidgets(settings.widgets, singlePostVariables),
+        widgets: resolveWidgets(settings.widgets, singlePostVariables, settings.locale),
         helpers: createTemplateHelpers(settings, singlePostVariables),
         variables: singlePostVariables,
         posts: compiledPosts,
@@ -877,6 +1246,7 @@ app.post('/api/publish', async (req, res) => {
       category: p.category,
       description: p.description,
       date: p.date,
+      formattedDate: formatDateForLocale(p.date, settings.locale),
       tags: p.tags
     }));
     fs.writeFileSync(path.join(OUT_DIR, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');

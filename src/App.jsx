@@ -23,6 +23,8 @@ const THEME_TEXT_FIELDS = [
   { key: 'terminalTitle', label: 'Terminal Title', placeholder: 'Use selected theme default' },
   { key: 'footerTerminalTitle', label: 'Footer Terminal Title', placeholder: 'Use selected theme default' },
   { key: 'newsletterDescription', label: 'Newsletter Description', placeholder: 'Use selected theme default', multiline: true },
+  { key: 'newsletterPlaceholder', label: 'Newsletter Email Placeholder', placeholder: 'Use selected theme default' },
+  { key: 'newsletterEmailLabel', label: 'Newsletter Email Label', placeholder: 'Use selected theme default' },
   { key: 'newsletterSubmitLabel', label: 'Newsletter Submit Button', placeholder: 'Use selected theme default' },
   { key: 'newsletterDisabledPlaceholder', label: 'Newsletter Disabled Placeholder', placeholder: 'Use selected theme default' },
   { key: 'newsletterDisabledLabel', label: 'Newsletter Disabled Button', placeholder: 'Use selected theme default' },
@@ -32,19 +34,36 @@ const THEME_TEXT_FIELDS = [
   { key: 'footerCreditUrl', label: 'Footer Credit URL', placeholder: '#' }
 ];
 
+const SUPPORTED_LOCALES = [
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Español' },
+  { value: 'fr', label: 'Français' },
+  { value: 'de', label: 'Deutsch' },
+  { value: 'pt', label: 'Português' }
+];
+
 const DYNAMIC_VARIABLE_TOKENS = [
   '{date}',
   '{time}',
+  '{generatedAt}',
+  '{isoDate}',
   '{year}',
+  '{month}',
+  '{day}',
+  '{locale}',
+  '{language}',
   '{siteName}',
   '{authorName}',
   '{postCount}',
   '{lastPost}',
   '{lastPostTitle}',
   '{lastPostDate}',
+  '{lastPostIsoDate}',
   '{lastPostCategory}',
   '{postUrl}',
-  '{postTitle}'
+  '{postTitle}',
+  '{postDate}',
+  '{postIsoDate}'
 ];
 
 export default function App() {
@@ -901,6 +920,21 @@ export default function App() {
                           onChange={(e) => setSettings({ ...settings, siteSubtitle: e.target.value })}
                         />
                       </div>
+                    </div>
+
+                    <div className="meta-input-group">
+                      <label>Website Locale</label>
+                      <select
+                        className="meta-field"
+                        value={settings.locale || 'en'}
+                        onChange={(e) => setSettings({ ...settings, locale: e.target.value })}
+                      >
+                        {SUPPORTED_LOCALES.map(locale => (
+                          <option key={locale.value} value={locale.value}>
+                            {locale.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>

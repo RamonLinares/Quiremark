@@ -81,7 +81,7 @@
 
     const meta = document.createElement('span');
     meta.className = 'search-result-meta';
-    meta.textContent = [post.category, post.date].filter(Boolean).join(' / ');
+    meta.textContent = [post.category, post.formattedDate || post.date].filter(Boolean).join(' / ');
     link.appendChild(meta);
 
     return link;

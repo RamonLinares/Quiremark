@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= locale %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -32,7 +32,7 @@
         <div class="post-meta">
           <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
           <span class="meta-divider">&bull;</span>
-          <span class="post-date"><%= post.date %></span>
+          <span class="post-date"><%= helpers.date(post.date) %></span>
         </div>
 
         <h1 class="post-title"><%= post.title %></h1>
@@ -76,7 +76,7 @@
               <% posts.slice(0, 5).forEach(p => { %>
                 <li>
                   <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link"><%= p.title %></a>
-                  <span class="recent-post-date"><%= p.date %></span>
+                  <span class="recent-post-date"><%= helpers.date(p.date) %></span>
                 </li>
               <% }) %>
             </ul>
@@ -113,12 +113,12 @@
                 <p><%= helpers.copy('newsletterDescription', 'Join the clearing. Receive our monthly letter on art, design, and mindful living.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
-                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'your.email@nature.com' %>" required aria-label="E-mail for newsletter">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || helpers.copy('newsletterPlaceholder', 'your.email@nature.com') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'E-mail for newsletter') %>">
                     <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'JOIN LETTERS') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="E-mail for newsletter">
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'E-mail for newsletter') %>">
                     <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
                   </form>
                 <% } %>

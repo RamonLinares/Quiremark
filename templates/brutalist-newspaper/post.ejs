@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= locale %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,9 +14,9 @@
 </head>
 <body class="brutalist-theme">
   <div class="newspaper-top-bar">
-    <span>VOL. <%= new Date().getFullYear() - 2020 %> NO. <%= new Date().getMonth() + 1 %></span>
+    <span><%= helpers.t('VOL.') %> <%= new Date().getFullYear() - 2020 %> <%= helpers.t('NO.') %> <%= new Date().getMonth() + 1 %></span>
     <span class="pulse-marquee"><%= helpers.copy('editionLabel', 'EDITION: DIGITAL AESTHETICS') %></span>
-    <span><%= new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase() %></span>
+    <span><%= helpers.upper(helpers.longDate(new Date())) %></span>
   </div>
 
   <header class="blog-header brutalist-border-bottom">
@@ -36,7 +36,7 @@
         <div class="post-meta">
           <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
           <span class="meta-divider">/</span>
-          <span class="post-date"><%= post.date %></span>
+          <span class="post-date"><%= helpers.date(post.date) %></span>
         </div>
 
         <h1 class="post-title"><%= post.title %></h1>
@@ -80,7 +80,7 @@
               <% posts.slice(0, 5).forEach(p => { %>
                 <li>
                   <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link">&bull; <%= p.title %></a>
-                  <span class="recent-post-date"><%= p.date %></span>
+                  <span class="recent-post-date"><%= helpers.date(p.date) %></span>
                 </li>
               <% }) %>
             </ul>
@@ -117,12 +117,12 @@
                 <p><%= helpers.copy('newsletterDescription', 'Subscribe to our wire updates. Delivered instantly to your visual cortex.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
-                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'your.email@wire.com' %>" required aria-label="Newsletter input">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || helpers.copy('newsletterPlaceholder', 'your.email@wire.com') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'Newsletter input') %>">
                     <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'SUBSCRIBE') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE WIRE ENDPOINT') %>" disabled aria-label="Newsletter input">
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE WIRE ENDPOINT') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'Newsletter input') %>">
                     <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'CONFIGURE') %></button>
                   </form>
                 <% } %>

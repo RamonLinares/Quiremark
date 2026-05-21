@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= locale %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= siteName %> | Home</title>
+  <title><%= siteName %> | <%= helpers.t('Home') %></title>
   <meta name="description" content="<%= siteSubtitle %>">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="shortcut icon" href="/favicon.svg">
@@ -50,7 +50,7 @@
               <div class="post-meta">
                 <span class="post-category"><%= post.category %></span>
                 <span class="meta-divider">•</span>
-                <span class="post-date"><%= post.date %></span>
+                <span class="post-date"><%= helpers.date(post.date) %></span>
               </div>
               <h2 class="post-title">
                 <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
@@ -89,7 +89,7 @@
               <% posts.slice(0, 5).forEach(p => { %>
                 <li>
                   <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link"><%= p.title %></a>
-                  <span class="recent-post-date"><%= p.date %></span>
+                  <span class="recent-post-date"><%= helpers.date(p.date) %></span>
                 </li>
               <% }) %>
             </ul>
@@ -126,12 +126,12 @@
                 <p><%= helpers.copy('newsletterDescription', 'Subscribe for weekly drops of design, coding, and futuristic aesthetics.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
-                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'Email address' %>" required aria-label="Email Address">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || helpers.copy('newsletterPlaceholder', 'Email address') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email Address') %>">
                     <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="Email Address">
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email Address') %>">
                     <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
                   </form>
                 <% } %>

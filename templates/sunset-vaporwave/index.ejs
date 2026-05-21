@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= locale %>">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= siteName %> | Home</title>
+  <title><%= siteName %> | <%= helpers.t('Home') %></title>
   <meta name="description" content="<%= siteSubtitle %>">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="shortcut icon" href="/favicon.svg">
@@ -53,7 +53,7 @@
               <div class="post-meta">
                 <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
                 <span class="meta-divider">//</span>
-                <span class="post-date"><%= post.date %></span>
+                <span class="post-date"><%= helpers.date(post.date) %></span>
               </div>
               <h2 class="post-title">
                 <a href="/posts/<%= post.slug %>/index.html"><%= post.title %></a>
@@ -92,7 +92,7 @@
               <% posts.slice(0, 5).forEach(p => { %>
                 <li>
                   <a href="/posts/<%= p.slug %>/index.html" class="recent-post-link">> <%= p.title %></a>
-                  <span class="recent-post-date">// <%= p.date %></span>
+                  <span class="recent-post-date">// <%= helpers.date(p.date) %></span>
                 </li>
               <% }) %>
             </ul>
@@ -129,12 +129,12 @@
                 <p><%= helpers.copy('newsletterDescription', 'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.') %></p>
                 <% if (widget.actionUrl) { %>
                   <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
-                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || helpers.copy('newsletterPlaceholder', 'SYSTEM@DOMAIN.EXE') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'Neon Email Terminal') %>">
                     <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'TRANSMIT') %></button>
                   </form>
                 <% } else { %>
                   <form class="newsletter-form">
-                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT.EXE') %>" disabled aria-label="Neon Email Terminal">
+                    <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'CONFIGURE_ENDPOINT.EXE') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'Neon Email Terminal') %>">
                     <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'CONFIG') %></button>
                   </form>
                 <% } %>
