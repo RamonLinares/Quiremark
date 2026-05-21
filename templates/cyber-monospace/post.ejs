@@ -10,7 +10,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
 </head>
 <body class="cyber-theme">
   <!-- Scanline Overlay -->
@@ -44,7 +49,7 @@
         </div>
         <div class="terminal-body">
           <div class="post-meta">
-            <span class="post-category">[<%= post.category %>]</span>
+            <%- helpers.categoryLink(post, { prefix: '[', suffix: ']' }) %>
             <span class="meta-divider">::</span>
             <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
           </div>
@@ -66,6 +71,7 @@
     </main>
 
     <aside class="blog-sidebar">
+      <%- helpers.categoryNav(categories, post, { className: 'widget widget-categories terminal-panel', titlePrefix: '>_ ' }) %>
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %> terminal-panel" id="widget-<%= widget.id %>">
           <div class="terminal-header">

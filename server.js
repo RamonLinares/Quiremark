@@ -35,8 +35,35 @@ const DEFAULT_PUBLIC_FEATURES = {
   search: true,
   newsletter: true,
   about: true,
-  rss: true
+  rss: true,
+  categories: true
 };
+const DEFAULT_CATEGORIES = [
+  {
+    slug: 'design',
+    name: 'Design',
+    description: 'Visual design, brand systems, typography, and creative direction.',
+    color: '#a855f7'
+  },
+  {
+    slug: 'development',
+    name: 'Development',
+    description: 'Engineering notes, architecture, tooling, and implementation details.',
+    color: '#06b6d4'
+  },
+  {
+    slug: 'creative',
+    name: 'Creative',
+    description: 'Experiments across art, media, writing, and making.',
+    color: '#ec4899'
+  },
+  {
+    slug: 'tech',
+    name: 'Tech',
+    description: 'Technology trends, platforms, and digital culture.',
+    color: '#22c55e'
+  }
+];
 const SUPPORTED_LOCALES = {
   en: 'English',
   es: 'Español',
@@ -77,6 +104,9 @@ const REQUIRED_TEMPLATE_FIELDS = [
   'features',
   'themeText',
   'widgets',
+  'categories',
+  'currentCategory',
+  'allPosts',
   'helpers',
   'pageMeta',
   'variables',
@@ -89,7 +119,10 @@ const REQUIRED_TEMPLATE_HELPERS = [
   'date',
   'isoDate',
   'seoHead',
-  'longDate'
+  'longDate',
+  'categoryLink',
+  'categoryNav',
+  'categoryArchiveHeader'
 ];
 const TRANSLATIONS = {
   es: {
@@ -164,6 +197,10 @@ const TRANSLATIONS = {
     'Topics': 'Temas',
     'Newsletter': 'Boletín',
     'RSS Feed': 'Canal RSS',
+    'Category': 'Categoría',
+    'Categories': 'Categorías',
+    'All Posts': 'Todas las publicaciones',
+    'Category Archive': 'Archivo de categoría',
     'Inner Circle Newsletter': 'Boletín del círculo interno',
     'Custom HTML Block': 'Bloque HTML personalizado',
     'Enter your email...': 'Introduce tu correo...',
@@ -241,6 +278,10 @@ const TRANSLATIONS = {
     'Topics': 'Temes',
     'Newsletter': 'Butlletí',
     'RSS Feed': 'Canal RSS',
+    'Category': 'Categoria',
+    'Categories': 'Categories',
+    'All Posts': 'Totes les publicacions',
+    'Category Archive': 'Arxiu de categoria',
     'Inner Circle Newsletter': 'Butlletí del cercle intern',
     'Custom HTML Block': 'Bloc HTML personalitzat',
     'Enter your email...': 'Introdueix el teu correu...',
@@ -318,6 +359,10 @@ const TRANSLATIONS = {
     'Topics': '主题',
     'Newsletter': '通讯',
     'RSS Feed': 'RSS 订阅',
+    'Category': '分类',
+    'Categories': '分类',
+    'All Posts': '所有文章',
+    'Category Archive': '分类归档',
     'Inner Circle Newsletter': '内圈通讯',
     'Custom HTML Block': '自定义 HTML 区块',
     'Enter your email...': '输入你的邮箱...',
@@ -573,6 +618,7 @@ const OUT_DIR = path.join(__dirname, 'out');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
 const COMMON_SEARCH_STYLE = path.join(TEMPLATES_DIR, 'search.css');
+const COMMON_TAXONOMY_STYLE = path.join(TEMPLATES_DIR, 'taxonomy.css');
 const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
 // Ensure necessary directories exist on startup
@@ -624,6 +670,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     selectedTemplate: "nordic-minimal",
     locale: DEFAULT_LOCALE,
     features: { ...DEFAULT_PUBLIC_FEATURES },
+    categories: DEFAULT_CATEGORIES,
     themeText: normalizeThemeText(),
     widgets: [
       { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
@@ -711,6 +758,11 @@ function postOutputDir(slug) {
   return resolveInside(path.join(OUT_DIR, 'posts'), slug);
 }
 
+function categoryOutputDir(slug) {
+  assertValidSlug(slug);
+  return resolveInside(path.join(OUT_DIR, 'categories'), slug);
+}
+
 function normalizeTags(tags) {
   if (Array.isArray(tags)) {
     return tags.map(tag => String(tag).trim()).filter(Boolean);
@@ -756,6 +808,106 @@ function normalizeKeywordList(value) {
     .filter(Boolean)
     .slice(0, 24)
     .join(', ');
+}
+
+function normalizeColor(value, fallback = '#64748b') {
+  const color = String(value || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : fallback;
+}
+
+function normalizeCategory(category = {}, fallback = DEFAULT_CATEGORIES[0], index = 0) {
+  const fallbackCategory = fallback || DEFAULT_CATEGORIES[0];
+  const name = String(category.name || category.label || category.title || category.slug || fallbackCategory.name || 'Category')
+    .replace(/\0/g, '')
+    .trim()
+    .slice(0, 80) || fallbackCategory.name;
+  const candidateSlug = slugify(category.slug || name || fallbackCategory.slug).slice(0, 64).replace(/^-+|-+$/g, '');
+  const slug = isValidSlug(candidateSlug) ? candidateSlug : `${fallbackCategory.slug || 'category'}-${index + 1}`;
+  return {
+    slug,
+    name,
+    description: String(category.description || '')
+      .replace(/\0/g, '')
+      .trim()
+      .slice(0, 260),
+    color: normalizeColor(category.color, fallbackCategory.color || '#64748b')
+  };
+}
+
+function normalizeCategories(categories = DEFAULT_CATEGORIES) {
+  const source = Array.isArray(categories) && categories.length ? categories : DEFAULT_CATEGORIES;
+  const seen = new Set();
+  const normalized = [];
+
+  source.forEach((category, index) => {
+    const fallback = DEFAULT_CATEGORIES[index] || DEFAULT_CATEGORIES[0];
+    let normalizedCategory = normalizeCategory(category, fallback, index);
+    if (seen.has(normalizedCategory.slug)) {
+      normalizedCategory = {
+        ...normalizedCategory,
+        slug: `${normalizedCategory.slug}-${index + 1}`
+      };
+    }
+    seen.add(normalizedCategory.slug);
+    normalized.push(normalizedCategory);
+  });
+
+  return normalized.length
+    ? normalized
+    : DEFAULT_CATEGORIES.map((category, index) => normalizeCategory(category, DEFAULT_CATEGORIES[index], index));
+}
+
+function resolveCategoryReference(value, categories) {
+  const rawValue = String(value || '').trim();
+  if (!rawValue) return categories[0];
+  const slug = slugify(rawValue);
+  const lowerValue = rawValue.toLowerCase();
+  return categories.find(category => (
+    category.slug === slug ||
+    category.slug === rawValue ||
+    category.name.toLowerCase() === lowerValue
+  )) || null;
+}
+
+function normalizePostCategory(value, categories, options = {}) {
+  const match = resolveCategoryReference(value, categories);
+  if (match) return match.slug;
+
+  if (options.strict) {
+    const err = new Error('Post category must match one of the configured categories.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return categories[0]?.slug || DEFAULT_CATEGORIES[0].slug;
+}
+
+function decoratePostCategory(post, categories) {
+  const category = resolveCategoryReference(post.category, categories) || categories[0] || DEFAULT_CATEGORIES[0];
+  return {
+    ...post,
+    category: category.slug,
+    categorySlug: category.slug,
+    categoryName: category.name,
+    categoryDescription: category.description,
+    categoryColor: category.color,
+    categoryUrl: categoryPathForCategory(category)
+  };
+}
+
+function buildCategorySummaries(categories, posts, settings) {
+  const counts = posts.reduce((acc, post) => {
+    const slug = post.categorySlug || post.category;
+    if (slug) acc[slug] = (acc[slug] || 0) + 1;
+    return acc;
+  }, {});
+
+  return categories.map(category => ({
+    ...category,
+    url: categoryPathForCategory(category),
+    absoluteUrl: absoluteUrl(settings, categoryPathForCategory(category)) || categoryPathForCategory(category),
+    postCount: counts[category.slug] || 0
+  }));
 }
 
 function hasDynamicVariable(value) {
@@ -929,6 +1081,14 @@ function markdownPathForPost(post) {
   return post?.slug ? `/posts/${post.slug}/index.html.md` : '/index.html.md';
 }
 
+function categoryPathForCategory(category) {
+  return category?.slug ? `/categories/${category.slug}/` : '/';
+}
+
+function categoryMarkdownPath(category) {
+  return category?.slug ? `/categories/${category.slug}/index.html.md` : '/index.html.md';
+}
+
 function ogLocale(locale) {
   const map = {
     en: 'en_US',
@@ -988,13 +1148,13 @@ function createPublisherSchema(settings) {
   };
 }
 
-function createHomePageMeta(settings, homepageText, posts) {
+function createHomePageMeta(settings, homepageText, posts, categories = []) {
   const description = truncateText(settings.seoDescription || homepageText.siteSubtitle || homepageText.authorBio, 180);
   const titleSuffix = homepageText.siteSubtitle ? homepageText.siteSubtitle : translateText('Home', settings.locale);
   const title = `${homepageText.siteName} | ${titleSuffix}`;
   const url = absoluteUrl(settings, '/');
   const image = assetUrl(settings, settings.seoImage || settings.authorAvatar);
-  const keywords = mergeKeywords(settings.seoKeywords, posts.flatMap(post => [post.category, ...(post.tags || [])]));
+  const keywords = mergeKeywords(settings.seoKeywords, posts.flatMap(post => [post.categoryName, ...(post.tags || [])]));
   const feedUrl = settings.features.rss ? (absoluteUrl(settings, '/feed.xml') || '/feed.xml') : '';
   const websiteSchema = {
     '@type': 'WebSite',
@@ -1027,13 +1187,19 @@ function createHomePageMeta(settings, homepageText, posts) {
       description,
       author: { '@id': absoluteUrl(settings, '/#author') || '#author' },
       publisher: { '@id': absoluteUrl(settings, '/#publisher') || '#publisher' },
+      about: categories.map(category => ({
+        '@type': 'Thing',
+        name: category.name,
+        url: category.absoluteUrl || categoryPathForCategory(category)
+      })),
       blogPost: posts.map(post => ({
         '@type': 'BlogPosting',
         '@id': `${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}#blogposting`,
         headline: post.title,
         url: absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post),
         datePublished: toIsoDate(post.date),
-        dateModified: post.modifiedAt || toIsoDate(post.date)
+        dateModified: post.modifiedAt || toIsoDate(post.date),
+        ...(post.categoryName ? { articleSection: post.categoryName } : {})
       }))
     }
   ];
@@ -1058,7 +1224,7 @@ function createPostPageMeta(settings, homepageText, post) {
   const description = truncateText(post.description || post.plainText, 180);
   const url = absoluteUrl(settings, pagePathForPost(post));
   const image = assetUrl(settings, post.coverImage || settings.seoImage || settings.authorAvatar);
-  const keywords = mergeKeywords(settings.seoKeywords, post.category, post.tags);
+  const keywords = mergeKeywords(settings.seoKeywords, post.categoryName, post.tags);
   const feedUrl = settings.features.rss ? (absoluteUrl(settings, '/feed.xml') || '/feed.xml') : '';
   const authorId = absoluteUrl(settings, '/#author') || '#author';
   const publisherId = absoluteUrl(settings, '/#publisher') || '#publisher';
@@ -1099,7 +1265,8 @@ function createPostPageMeta(settings, homepageText, post) {
       publisher: { '@id': publisherId },
       isPartOf: { '@id': absoluteUrl(settings, '/#blog') || '#blog' },
       ...(image ? { image } : {}),
-      ...(post.category ? { articleSection: post.category } : {}),
+      ...(post.categoryName ? { articleSection: post.categoryName } : {}),
+      ...(post.categoryUrl ? { about: { '@type': 'Thing', name: post.categoryName, url: absoluteUrl(settings, post.categoryUrl) || post.categoryUrl } } : {}),
       ...(keywords.length ? { keywords } : {}),
       ...(post.readingTime ? { timeRequired: `PT${post.readingTime}M` } : {}),
       ...(post.wordCount ? { wordCount: post.wordCount } : {})
@@ -1118,9 +1285,81 @@ function createPostPageMeta(settings, homepageText, post) {
     locale: ogLocale(settings.locale),
     publishedTime: toIsoDate(post.date),
     modifiedTime: post.modifiedAt || toIsoDate(post.date),
-    section: post.category,
+    section: post.categoryName,
     tags: post.tags || [],
     author: settings.authorName,
+    feedUrl,
+    feedTitle: `${homepageText.siteName} ${translateText('RSS Feed', settings.locale)}`,
+    jsonLd: { '@context': 'https://schema.org', '@graph': graph }
+  };
+}
+
+function createCategoryPageMeta(settings, homepageText, category, posts) {
+  const categoryUrl = absoluteUrl(settings, categoryPathForCategory(category));
+  const description = truncateText(
+    category.description || `${translateText('Category Archive', settings.locale)}: ${category.name}`,
+    180
+  );
+  const keywords = mergeKeywords(settings.seoKeywords, category.name, posts.flatMap(post => post.tags || []));
+  const feedUrl = settings.features.rss ? (absoluteUrl(settings, '/feed.xml') || '/feed.xml') : '';
+  const categoryPath = categoryPathForCategory(category);
+  const graph = [
+    createPublisherSchema(settings),
+    createPersonSchema(settings),
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${categoryUrl || categoryPath}#breadcrumb`,
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: homepageText.siteName,
+          item: absoluteUrl(settings, '/') || '/'
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: category.name,
+          item: categoryUrl || categoryPath
+        }
+      ]
+    },
+    {
+      '@type': 'CollectionPage',
+      '@id': `${categoryUrl || categoryPath}#collection`,
+      name: `${category.name} | ${homepageText.siteName}`,
+      url: categoryUrl || categoryPath,
+      inLanguage: settings.locale,
+      description,
+      isPartOf: { '@id': absoluteUrl(settings, '/#blog') || '#blog' },
+      about: {
+        '@type': 'Thing',
+        name: category.name,
+        description: category.description || undefined
+      },
+      mainEntity: {
+        '@type': 'ItemList',
+        numberOfItems: posts.length,
+        itemListElement: posts.map((post, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          url: absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post),
+          name: post.title
+        }))
+      }
+    }
+  ];
+
+  return {
+    type: 'website',
+    title: `${category.name} | ${homepageText.siteName}`,
+    description,
+    canonicalUrl: categoryUrl,
+    markdownUrl: absoluteUrl(settings, categoryMarkdownPath(category)) || categoryMarkdownPath(category),
+    image: assetUrl(settings, settings.seoImage || settings.authorAvatar),
+    keywords,
+    robots: settings.allowIndexing ? 'index, follow, max-image-preview:large' : 'noindex, nofollow',
+    locale: ogLocale(settings.locale),
     feedUrl,
     feedTitle: `${homepageText.siteName} ${translateText('RSS Feed', settings.locale)}`,
     jsonLd: { '@context': 'https://schema.org', '@graph': graph }
@@ -1140,7 +1379,7 @@ function markdownEscape(value) {
   return String(value || '').replace(/\]/g, '\\]');
 }
 
-function createSitemapXml(settings, posts, generatedAt) {
+function createSitemapXml(settings, posts, categories = [], generatedAt) {
   const homeUrl = absoluteUrl(settings, '/');
   if (!homeUrl) {
     return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n';
@@ -1158,6 +1397,12 @@ function createSitemapXml(settings, posts, generatedAt) {
       lastmod: toIsoDateOnly(post.modifiedAt || post.date),
       changefreq: 'monthly',
       priority: '0.8'
+    })),
+    ...categories.map(category => ({
+      loc: absoluteUrl(settings, categoryPathForCategory(category)),
+      lastmod: toIsoDateOnly(generatedAt),
+      changefreq: 'weekly',
+      priority: category.postCount > 0 ? '0.6' : '0.3'
     }))
   ];
 
@@ -1194,7 +1439,7 @@ function createRssFeedXml(settings, homepageText, posts, generatedAt) {
   const feedImage = assetUrl(settings, settings.seoImage || settings.authorAvatar);
   const items = posts.map(post => {
     const postUrl = absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post);
-    const categories = [post.category, ...(post.tags || [])].filter(Boolean);
+    const categories = [post.categoryName, ...(post.tags || [])].filter(Boolean);
     return [
       '    <item>',
       `      <title>${xmlEscape(post.title)}</title>`,
@@ -1240,9 +1485,12 @@ function createRobotsTxt(settings) {
   ].join('\n');
 }
 
-function createHomeMarkdown(settings, homepageText, posts) {
+function createHomeMarkdown(settings, homepageText, posts, categories = []) {
   const postLines = posts.map(post => (
-    `- [${markdownEscape(post.title)}](${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}): ${post.description || post.category || 'Blog post'}`
+    `- [${markdownEscape(post.title)}](${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}): ${post.description || post.categoryName || 'Blog post'}`
+  ));
+  const categoryLines = categories.map(category => (
+    `- [${markdownEscape(category.name)}](${category.absoluteUrl || categoryPathForCategory(category)}): ${category.description || `${category.postCount} posts`}`
   ));
   return [
     `# ${homepageText.siteName}`,
@@ -1251,6 +1499,9 @@ function createHomeMarkdown(settings, homepageText, posts) {
     '',
     `Author: ${homepageText.authorName}`,
     `Language: ${SUPPORTED_LOCALES[settings.locale]} (${settings.locale})`,
+    '',
+    '## Categories',
+    ...(categoryLines.length ? categoryLines : ['No categories configured.']),
     '',
     '## Posts',
     ...(postLines.length ? postLines : ['No published posts.']),
@@ -1268,7 +1519,7 @@ function createPostMarkdown(settings, homepageText, post) {
     `Published: ${toIsoDateOnly(post.date)}`,
     `Modified: ${toIsoDateOnly(post.modifiedAt || post.date)}`,
     `Author: ${homepageText.authorName}`,
-    `Category: ${post.category}`,
+    `Category: ${post.categoryName}`,
     `Tags: ${(post.tags || []).join(', ') || 'None'}`,
     '',
     post.rawContent || '',
@@ -1276,10 +1527,33 @@ function createPostMarkdown(settings, homepageText, post) {
   ].join('\n');
 }
 
-function createLlmsTxt(settings, homepageText, posts) {
+function createCategoryMarkdown(settings, homepageText, category, posts) {
+  const postLines = posts.map(post => (
+    `- [${markdownEscape(post.title)}](${absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post)}): ${post.description || 'Blog post'}`
+  ));
+  return [
+    `# ${category.name}`,
+    '',
+    `> ${category.description || `${translateText('Category Archive', settings.locale)}: ${category.name}`}`,
+    '',
+    `Canonical URL: ${absoluteUrl(settings, categoryPathForCategory(category)) || categoryPathForCategory(category)}`,
+    `Site: ${homepageText.siteName}`,
+    `Language: ${SUPPORTED_LOCALES[settings.locale]} (${settings.locale})`,
+    '',
+    '## Posts',
+    ...(postLines.length ? postLines : ['No published posts in this category.']),
+    ''
+  ].join('\n');
+}
+
+function createLlmsTxt(settings, homepageText, posts, categories = []) {
   const postLines = posts.map(post => {
     const markdownUrl = absoluteUrl(settings, markdownPathForPost(post)) || markdownPathForPost(post);
-    return `- [${markdownEscape(post.title)}](${markdownUrl}): ${post.description || `${post.category} post`}`;
+    return `- [${markdownEscape(post.title)}](${markdownUrl}): ${post.description || `${post.categoryName} post`}`;
+  });
+  const categoryLines = categories.map(category => {
+    const markdownUrl = absoluteUrl(settings, categoryMarkdownPath(category)) || categoryMarkdownPath(category);
+    return `- [${markdownEscape(category.name)}](${markdownUrl}): ${category.description || `${category.postCount} posts`}`;
   });
   const optional = [
     `- [Sitemap](${absoluteUrl(settings, '/sitemap.xml') || '/sitemap.xml'}): XML list of canonical public URLs`,
@@ -1302,17 +1576,25 @@ function createLlmsTxt(settings, homepageText, posts) {
     '## Posts',
     ...(postLines.length ? postLines : ['No published posts.']),
     '',
+    '## Categories',
+    ...(categoryLines.length ? categoryLines : ['No category archive pages.']),
+    '',
     '## Optional',
     ...optional,
     ''
   ].join('\n');
 }
 
-function createLlmsFullTxt(settings, homepageText, posts) {
+function createLlmsFullTxt(settings, homepageText, posts, categories = []) {
   return [
-    createLlmsTxt(settings, homepageText, posts),
+    createLlmsTxt(settings, homepageText, posts, categories),
     '---',
     '',
+    ...categories.flatMap(category => [
+      createCategoryMarkdown(settings, homepageText, category, posts.filter(post => post.categorySlug === category.slug)),
+      '---',
+      ''
+    ]),
     ...posts.flatMap(post => [
       createPostMarkdown(settings, homepageText, post),
       '---',
@@ -1321,7 +1603,7 @@ function createLlmsFullTxt(settings, homepageText, posts) {
   ].join('\n');
 }
 
-function createDynamicVariables(settings, posts = [], currentPost = null, now = new Date()) {
+function createDynamicVariables(settings, posts = [], currentPost = null, now = new Date(), currentCategory = null, categories = []) {
   const latestPost = posts[0] || null;
   const currentUrl = postUrl(currentPost);
   const latestUrl = postUrl(latestPost);
@@ -1348,6 +1630,13 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     template: settings.selectedTemplate,
     homeUrl: '/index.html',
     postCount: String(posts.length),
+    categoryCount: String(categories.length),
+    categories: categories.map(category => category.name).join(', '),
+    category: currentCategory?.name || currentPost?.categoryName || '',
+    categoryName: currentCategory?.name || currentPost?.categoryName || '',
+    categorySlug: currentCategory?.slug || currentPost?.categorySlug || '',
+    categoryDescription: currentCategory?.description || currentPost?.categoryDescription || '',
+    categoryUrl: currentCategory ? categoryPathForCategory(currentCategory) : (currentPost?.categoryUrl || ''),
     lastPost: latestUrl,
     lastPostUrl: latestUrl,
     lastPostSlug: latestPost?.slug || '',
@@ -1355,7 +1644,8 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     lastPostDescription: latestPost?.description || '',
     lastPostDate: latestPost ? formatDateForLocale(latestPost.date, locale) : '',
     lastPostIsoDate: latestPost?.date || '',
-    lastPostCategory: latestPost?.category || '',
+    lastPostCategory: latestPost?.categoryName || '',
+    lastPostCategoryUrl: latestPost?.categoryUrl || '',
     lastPostTags: formatPostTags(latestPost),
     lastPostReadingTime: latestPost?.readingTime ? String(latestPost.readingTime) : '',
     latestPost: latestUrl,
@@ -1368,7 +1658,8 @@ function createDynamicVariables(settings, posts = [], currentPost = null, now = 
     postDescription: currentPost?.description || '',
     postDate: currentPost ? formatDateForLocale(currentPost.date, locale) : '',
     postIsoDate: currentPost?.date || '',
-    postCategory: currentPost?.category || '',
+    postCategory: currentPost?.categoryName || '',
+    postCategoryUrl: currentPost?.categoryUrl || '',
     postTags: formatPostTags(currentPost),
     postReadingTime: currentPost?.readingTime ? String(currentPost.readingTime) : ''
   };
@@ -1443,6 +1734,65 @@ function renderSeoHead(pageMeta = {}) {
   return tags.filter(Boolean).join('\n  ');
 }
 
+function formatCategoryLinkLabel(category, options = {}) {
+  const name = String(category?.name || category?.categoryName || 'Uncategorized');
+  const label = options.upper ? name.toUpperCase() : name;
+  return `${options.prefix || ''}${label}${options.suffix || ''}`;
+}
+
+function renderCategoryLink(settings, post, options = {}) {
+  const label = escapeHtml(formatCategoryLinkLabel({
+    name: post?.categoryName || post?.category || 'Uncategorized'
+  }, options));
+  const className = escapeHtml(options.className || 'post-category');
+  const style = post?.categoryColor ? ` style="--category-color: ${escapeHtml(post.categoryColor)}"` : '';
+  if (settings.features.categories && post?.categoryUrl) {
+    return `<a href="${escapeHtml(post.categoryUrl)}" class="${className}"${style}>${label}</a>`;
+  }
+  return `<span class="${className}"${style}>${label}</span>`;
+}
+
+function renderCategoryNav(settings, categories = [], currentCategory = null, options = {}) {
+  if (!settings.features.categories || !categories.length) return '';
+  const totalPosts = categories.reduce((sum, category) => sum + (Number(category.postCount) || 0), 0);
+  const activeSlug = currentCategory?.categorySlug || currentCategory?.slug || '';
+  const title = escapeHtml(`${options.titlePrefix || ''}${translateText('Categories', settings.locale)}`);
+  const className = escapeHtml(options.className || 'widget widget-categories');
+  const titleClass = escapeHtml(options.titleClass || 'widget-title');
+  const allPostsLabel = escapeHtml(translateText('All Posts', settings.locale));
+  const allActiveClass = activeSlug ? '' : ' active';
+  const items = [
+    `<a class="category-chip${allActiveClass}" href="/index.html"><span class="category-color" style="--category-color: #64748b"></span><span class="category-name">${allPostsLabel}</span><span class="category-count">${totalPosts}</span></a>`,
+    ...categories.map(category => {
+      const activeClass = activeSlug === category.slug ? ' active' : '';
+      return `<a class="category-chip${activeClass}" href="${escapeHtml(category.url)}" style="--category-color: ${escapeHtml(category.color)}"><span class="category-color"></span><span class="category-name">${escapeHtml(category.name)}</span><span class="category-count">${Number(category.postCount) || 0}</span></a>`;
+    })
+  ];
+  return [
+    `<nav class="${className}" aria-label="${escapeHtml(translateText('Categories', settings.locale))}">`,
+    `  <h3 class="${titleClass}">${title}</h3>`,
+    '  <div class="category-list">',
+    ...items.map(item => `    ${item}`),
+    '  </div>',
+    '</nav>'
+  ].join('\n');
+}
+
+function renderCategoryArchiveHeader(settings, currentCategory = null) {
+  if (!settings.features.categories || !currentCategory) return '';
+  const description = currentCategory.description
+    ? `<p class="category-archive-description">${escapeHtml(currentCategory.description)}</p>`
+    : '';
+  return [
+    `<section class="category-archive-intro" style="--category-color: ${escapeHtml(currentCategory.color)}">`,
+    `  <p class="category-archive-kicker">${escapeHtml(translateText('Category Archive', settings.locale))}</p>`,
+    `  <h2 class="category-archive-title">${escapeHtml(currentCategory.name)}</h2>`,
+    description,
+    `  <a class="category-archive-back" href="/index.html">${escapeHtml(translateText('All Posts', settings.locale))}</a>`,
+    '</section>'
+  ].filter(Boolean).join('\n');
+}
+
 function createTemplateHelpers(settings, variables) {
   return {
     upper: value => String(value || '').toUpperCase(),
@@ -1456,7 +1806,10 @@ function createTemplateHelpers(settings, variables) {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
-    })
+    }),
+    categoryLink: (post, options = {}) => renderCategoryLink(settings, post, options),
+    categoryNav: (categories = [], currentCategory = null, options = {}) => renderCategoryNav(settings, categories, currentCategory, options),
+    categoryArchiveHeader: currentCategory => renderCategoryArchiveHeader(settings, currentCategory)
   };
 }
 
@@ -1504,7 +1857,8 @@ function normalizeFeatureFlags(features = {}) {
     search: features.search !== false,
     newsletter: features.newsletter !== false,
     about: features.about !== false,
-    rss: features.rss !== false
+    rss: features.rss !== false,
+    categories: features.categories !== false
   };
 }
 
@@ -1518,6 +1872,7 @@ function filterWidgetsForFeatures(widgets, features) {
 
 function normalizeSettings(settings = {}) {
   const widgets = Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : [];
+  const categories = normalizeCategories(settings.categories);
   return {
     siteName: String(settings.siteName || 'Zenith Press'),
     siteSubtitle: String(settings.siteSubtitle || ''),
@@ -1538,6 +1893,7 @@ function normalizeSettings(settings = {}) {
     selectedTemplate: String(settings.selectedTemplate || 'nordic-minimal'),
     locale: normalizeLocale(settings.locale),
     features: normalizeFeatureFlags(settings.features),
+    categories,
     themeText: normalizeThemeText(settings.themeText),
     widgets
   };
@@ -1547,7 +1903,7 @@ function readSettings() {
   return normalizeSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')));
 }
 
-function normalizePost(attributes = {}, body = '', fileName = '') {
+function normalizePost(attributes = {}, body = '', fileName = '', categories = DEFAULT_CATEGORIES) {
   const fileSlug = slugify(path.basename(fileName, path.extname(fileName)));
   const title = String(attributes.title || 'Untitled Post');
   const slug = slugify(attributes.slug || fileSlug || title);
@@ -1556,7 +1912,7 @@ function normalizePost(attributes = {}, body = '', fileName = '') {
     slug: isValidSlug(slug) ? slug : fileSlug || slugify(title) || 'untitled-post',
     description: String(attributes.description || ''),
     date: String(attributes.date || new Date().toISOString().split('T')[0]),
-    category: String(attributes.category || 'Uncategorized'),
+    category: normalizePostCategory(attributes.category, categories),
     tags: normalizeTags(attributes.tags),
     coverImage: String(attributes.coverImage || ''),
     draft: attributes.draft === true,
@@ -1567,7 +1923,7 @@ function normalizePost(attributes = {}, body = '', fileName = '') {
   };
 }
 
-function normalizePostPayload(body = {}) {
+function normalizePostPayload(body = {}, settings = readSettings()) {
   const title = String(body.title || '').trim();
   const slug = String(body.slug || '').trim();
   if (!title || !slug) {
@@ -1581,7 +1937,7 @@ function normalizePostPayload(body = {}) {
     slug,
     description: String(body.description || ''),
     date: String(body.date || new Date().toISOString().split('T')[0]),
-    category: String(body.category || 'Uncategorized'),
+    category: normalizePostCategory(body.category, settings.categories, { strict: true }),
     tags: normalizeTags(body.tags),
     coverImage: String(body.coverImage || ''),
     content: String(body.content || ''),
@@ -1596,7 +1952,7 @@ function serializePostMarkdown(post) {
     `slug: ${JSON.stringify(post.slug)}`,
     `description: ${JSON.stringify(post.description)}`,
     `date: ${JSON.stringify(post.date)}`,
-    `category: ${JSON.stringify(post.category)}`,
+    `category: ${JSON.stringify(post.categorySlug || post.category)}`,
     `tags: ${JSON.stringify(post.tags)}`,
     `coverImage: ${JSON.stringify(post.coverImage)}`,
     `draft: ${post.draft === true}`,
@@ -1607,7 +1963,7 @@ function serializePostMarkdown(post) {
 }
 
 // Read and parse all posts
-function getAllPosts(includeDrafts = true) {
+function getAllPosts(includeDrafts = true, settings = readSettings()) {
   if (!fs.existsSync(POSTS_DIR)) return [];
   const files = fs.readdirSync(POSTS_DIR);
   const posts = files
@@ -1619,7 +1975,7 @@ function getAllPosts(includeDrafts = true) {
       const parsed = fm(content);
       
       return {
-        ...normalizePost(parsed.attributes, parsed.body, file),
+        ...decoratePostCategory(normalizePost(parsed.attributes, parsed.body, file, settings.categories), settings.categories),
         modifiedAt: stats.mtime.toISOString()
       };
     });
@@ -1738,7 +2094,7 @@ app.post('/api/settings', (req, res) => {
   try {
     const settings = normalizeSettings(req.body);
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
-    res.json({ success: true, message: 'Settings saved successfully.' });
+    res.json({ success: true, message: 'Settings saved successfully.', settings });
   } catch (err) {
     res.status(500).json({ error: 'Failed to write settings configuration.' });
   }
@@ -1747,7 +2103,8 @@ app.post('/api/settings', (req, res) => {
 // Fetch all posts (for admin view)
 app.get('/api/posts', (req, res) => {
   try {
-    const posts = getAllPosts(true);
+    const settings = readSettings();
+    const posts = getAllPosts(true, settings);
     res.json(posts);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch posts.' });
@@ -1764,7 +2121,8 @@ app.get('/api/posts/:slug', (req, res) => {
     }
     const content = fs.readFileSync(filePath, 'utf-8');
     const parsed = fm(content);
-    const post = normalizePost(parsed.attributes, parsed.body, `${slug}.md`);
+    const settings = readSettings();
+    const post = decoratePostCategory(normalizePost(parsed.attributes, parsed.body, `${slug}.md`, settings.categories), settings.categories);
     res.json({
       meta: { ...post, content: undefined },
       content: post.content
@@ -1903,7 +2261,7 @@ app.post('/api/publish', async (req, res) => {
     }
 
     // 3. Read posts (excl drafts for compilation)
-    const posts = getAllPosts(false);
+    const posts = getAllPosts(false, settings);
     logMsg(`Found ${posts.length} published posts to compile.`);
 
     // 4. Render markdown content for each post
@@ -1918,6 +2276,9 @@ app.post('/api/publish', async (req, res) => {
     });
     const publishNow = new Date();
     const visibleWidgets = filterWidgetsForFeatures(settings.widgets, settings.features);
+    const categorySummaries = settings.features.categories
+      ? buildCategorySummaries(settings.categories, compiledPosts, settings)
+      : [];
 
     // 5. Load EJS layouts
     const indexEjsPath = path.join(activeTemplateDir, 'index.ejs');
@@ -1932,9 +2293,9 @@ app.post('/api/publish', async (req, res) => {
 
     // 6. Build index/home page
     logMsg("Compiling blog home page (index.html)...");
-    const homepageVariables = createDynamicVariables(settings, compiledPosts, null, publishNow);
+    const homepageVariables = createDynamicVariables(settings, compiledPosts, null, publishNow, null, categorySummaries);
     const homepageText = resolveSettingsText(settings, homepageVariables);
-    const homepageMeta = createHomePageMeta(settings, homepageText, compiledPosts);
+    const homepageMeta = createHomePageMeta(settings, homepageText, compiledPosts, categorySummaries);
     
     const homepageData = {
       siteName: homepageText.siteName,
@@ -1945,17 +2306,20 @@ app.post('/api/publish', async (req, res) => {
       socialLinks: settings.socialLinks,
       locale: settings.locale,
       features: settings.features,
+      categories: categorySummaries,
+      currentCategory: null,
       themeText: settings.themeText,
       widgets: resolveWidgets(visibleWidgets, homepageVariables, settings.locale),
       helpers: createTemplateHelpers(settings, homepageVariables),
       pageMeta: homepageMeta,
       variables: homepageVariables,
+      allPosts: compiledPosts,
       posts: compiledPosts
     };
 
     const homeHtml = renderTemplate(indexTemplate, homepageData, `${templateName}/index.ejs`);
     fs.writeFileSync(path.join(OUT_DIR, 'index.html'), homeHtml, 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
     logMsg("Home page successfully written.");
 
     // 7. Build individual post pages under out/posts/[slug]/index.html for clean URLs
@@ -1970,7 +2334,7 @@ app.post('/api/publish', async (req, res) => {
       if (!fs.existsSync(singlePostDir)) {
         fs.mkdirSync(singlePostDir, { recursive: true });
       }
-      const singlePostVariables = createDynamicVariables(settings, compiledPosts, post, publishNow);
+      const singlePostVariables = createDynamicVariables(settings, compiledPosts, post, publishNow, null, categorySummaries);
       const singlePostText = resolveSettingsText(settings, singlePostVariables);
       const singlePostMeta = createPostPageMeta(settings, singlePostText, post);
 
@@ -1983,11 +2347,14 @@ app.post('/api/publish', async (req, res) => {
         socialLinks: settings.socialLinks,
         locale: settings.locale,
         features: settings.features,
+        categories: categorySummaries,
+        currentCategory: null,
         themeText: settings.themeText,
         widgets: resolveWidgets(visibleWidgets, singlePostVariables, settings.locale),
         helpers: createTemplateHelpers(settings, singlePostVariables),
         pageMeta: singlePostMeta,
         variables: singlePostVariables,
+        allPosts: compiledPosts,
         posts: compiledPosts,
         post: post
       };
@@ -1997,6 +2364,46 @@ app.post('/api/publish', async (req, res) => {
       fs.writeFileSync(path.join(singlePostDir, 'index.html.md'), createPostMarkdown(settings, singlePostText, post), 'utf-8');
     }
     logMsg(`All ${compiledPosts.length} posts compiled successfully.`);
+
+    if (settings.features.categories) {
+      const categoriesOutDir = path.join(OUT_DIR, 'categories');
+      fs.mkdirSync(categoriesOutDir, { recursive: true });
+      for (const category of categorySummaries) {
+        const categoryPosts = compiledPosts.filter(post => post.categorySlug === category.slug);
+        logMsg(`Compiling category archive: "/categories/${category.slug}" (${categoryPosts.length} posts)...`);
+        const singleCategoryDir = categoryOutputDir(category.slug);
+        fs.mkdirSync(singleCategoryDir, { recursive: true });
+        const categoryVariables = createDynamicVariables(settings, categoryPosts, null, publishNow, category, categorySummaries);
+        const categoryText = resolveSettingsText(settings, categoryVariables);
+        const categoryMeta = createCategoryPageMeta(settings, categoryText, category, categoryPosts);
+        const categoryData = {
+          siteName: categoryText.siteName,
+          siteSubtitle: categoryText.siteSubtitle,
+          authorName: categoryText.authorName,
+          authorBio: categoryText.authorBio,
+          authorAvatar: settings.authorAvatar,
+          socialLinks: settings.socialLinks,
+          locale: settings.locale,
+          features: settings.features,
+          categories: categorySummaries,
+          currentCategory: category,
+          themeText: settings.themeText,
+          widgets: resolveWidgets(visibleWidgets, categoryVariables, settings.locale),
+          helpers: createTemplateHelpers(settings, categoryVariables),
+          pageMeta: categoryMeta,
+          variables: categoryVariables,
+          allPosts: compiledPosts,
+          posts: categoryPosts
+        };
+
+        const categoryHtml = renderTemplate(indexTemplate, categoryData, `${templateName}/index.ejs`);
+        fs.writeFileSync(path.join(singleCategoryDir, 'index.html'), categoryHtml, 'utf-8');
+        fs.writeFileSync(path.join(singleCategoryDir, 'index.html.md'), createCategoryMarkdown(settings, categoryText, category, categoryPosts), 'utf-8');
+      }
+      logMsg(`All ${categorySummaries.length} category archives compiled successfully.`);
+    } else {
+      logMsg("Category archives disabled; skipped /categories output.");
+    }
 
     // 8. Copy active template stylesheets and client assets
     const styleSrc = path.join(activeTemplateDir, 'style.css');
@@ -2019,6 +2426,11 @@ app.post('/api/publish', async (req, res) => {
     if (settings.features.search && fs.existsSync(COMMON_SEARCH_STYLE)) {
       fs.copyFileSync(COMMON_SEARCH_STYLE, path.join(OUT_DIR, 'search.css'));
       logMsg("Copied shared search stylesheet (search.css).");
+    }
+
+    if (settings.features.categories && fs.existsSync(COMMON_TAXONOMY_STYLE)) {
+      fs.copyFileSync(COMMON_TAXONOMY_STYLE, path.join(OUT_DIR, 'taxonomy.css'));
+      logMsg("Copied shared taxonomy stylesheet (taxonomy.css).");
     }
 
     if (fs.existsSync(FAVICON_SOURCE)) {
@@ -2045,7 +2457,9 @@ app.post('/api/publish', async (req, res) => {
         slug: p.slug,
         url: absoluteUrl(settings, pagePathForPost(p)) || pagePathForPost(p),
         markdownUrl: absoluteUrl(settings, markdownPathForPost(p)) || markdownPathForPost(p),
-        category: p.category,
+        category: p.categorySlug,
+        categoryName: p.categoryName,
+        categoryUrl: p.categoryUrl,
         description: p.description,
         date: p.date,
         dateModified: p.modifiedAt || toIsoDate(p.date),
@@ -2060,7 +2474,7 @@ app.post('/api/publish', async (req, res) => {
       logMsg("Search feature disabled; skipped search assets and index.");
     }
 
-    fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, publishNow), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, categorySummaries, publishNow), 'utf-8');
     if (settings.features.rss) {
       fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), createRssFeedXml(settings, homepageText, compiledPosts, publishNow), 'utf-8');
       logMsg("RSS feed written (feed.xml).");
@@ -2068,8 +2482,8 @@ app.post('/api/publish', async (req, res) => {
       logMsg("RSS feed disabled; skipped feed.xml.");
     }
     fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), createRobotsTxt(settings), 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts), 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
+    fs.writeFileSync(path.join(OUT_DIR, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
     logMsg("Discovery files written (sitemap.xml, robots.txt, llms.txt).");
 
     logMsg("Static compilation process finished successfully!");

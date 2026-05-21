@@ -3,7 +3,7 @@ title: "Hello World: The Birth of Zenith Press"
 slug: "hello-world"
 description: "Welcome to Zenith Press! Exploring our vision for high-performance static websites and premium aesthetic design."
 date: "2026-05-18"
-category: "Design"
+category: "design"
 tags: ["Static","Web","Zenith","Design"]
 coverImage: "/content/images/image_1779285616221.jpeg"
 draft: false

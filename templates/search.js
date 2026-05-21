@@ -10,6 +10,7 @@
   const matchesPost = (post, query) => normalize([
     post.title,
     post.description,
+    post.categoryName,
     post.category,
     ...(post.tags || [])
   ].join(' ')).includes(query);
@@ -25,7 +26,7 @@
 
     const meta = document.createElement('span');
     meta.className = 'search-result-meta';
-    meta.textContent = [post.category, post.formattedDate || post.date].filter(Boolean).join(' / ');
+    meta.textContent = [post.categoryName || post.category, post.formattedDate || post.date].filter(Boolean).join(' / ');
     link.appendChild(meta);
 
     return link;

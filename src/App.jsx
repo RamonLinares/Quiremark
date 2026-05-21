@@ -41,6 +41,33 @@ const SUPPORTED_LOCALES = [
   { value: 'zh', label: '中文' }
 ];
 
+const DEFAULT_CATEGORIES = [
+  {
+    slug: 'design',
+    name: 'Design',
+    description: 'Visual design, brand systems, typography, and creative direction.',
+    color: '#a855f7'
+  },
+  {
+    slug: 'development',
+    name: 'Development',
+    description: 'Engineering notes, architecture, tooling, and implementation details.',
+    color: '#06b6d4'
+  },
+  {
+    slug: 'creative',
+    name: 'Creative',
+    description: 'Experiments across art, media, writing, and making.',
+    color: '#ec4899'
+  },
+  {
+    slug: 'tech',
+    name: 'Tech',
+    description: 'Technology trends, platforms, and digital culture.',
+    color: '#22c55e'
+  }
+];
+
 const DYNAMIC_VARIABLE_TOKENS = [
   '{date}',
   '{time}',
@@ -54,15 +81,24 @@ const DYNAMIC_VARIABLE_TOKENS = [
   '{siteName}',
   '{authorName}',
   '{postCount}',
+  '{categoryCount}',
+  '{categories}',
+  '{categoryName}',
+  '{categorySlug}',
+  '{categoryDescription}',
+  '{categoryUrl}',
   '{lastPost}',
   '{lastPostTitle}',
   '{lastPostDate}',
   '{lastPostIsoDate}',
   '{lastPostCategory}',
+  '{lastPostCategoryUrl}',
   '{postUrl}',
   '{postTitle}',
   '{postDate}',
-  '{postIsoDate}'
+  '{postIsoDate}',
+  '{postCategory}',
+  '{postCategoryUrl}'
 ];
 
 const PUBLIC_FEATURE_FIELDS = [
@@ -85,6 +121,11 @@ const PUBLIC_FEATURE_FIELDS = [
     key: 'rss',
     label: 'RSS Feed',
     description: 'Generate /feed.xml and add feed discovery links.'
+  },
+  {
+    key: 'categories',
+    label: 'Categories',
+    description: 'Show category navigation and generate public category archive pages.'
   }
 ];
 
@@ -109,7 +150,7 @@ export default function App() {
     title: '',
     slug: '',
     description: '',
-    category: 'Design',
+    category: DEFAULT_CATEGORIES[0].slug,
     tags: [],
     coverImage: '',
     date: new Date().toISOString().split('T')[0],
@@ -131,6 +172,19 @@ export default function App() {
     () => DOMPurify.sanitize(marked.parse(editingPost.content || '*Empty post draft...*')),
     [editingPost.content]
   );
+  const categories = useMemo(
+    () => (Array.isArray(settings?.categories) && settings.categories.length ? settings.categories : DEFAULT_CATEGORIES),
+    [settings?.categories]
+  );
+  const categoryBySlug = useMemo(
+    () => new Map(categories.map(category => [category.slug, category])),
+    [categories]
+  );
+  const postCountByCategory = useMemo(() => posts.reduce((counts, post) => {
+    const slug = post.categorySlug || post.category;
+    if (slug) counts[slug] = (counts[slug] || 0) + 1;
+    return counts;
+  }, {}), [posts]);
 
   // Initialize
   useEffect(() => {
@@ -246,7 +300,7 @@ export default function App() {
       });
       const data = await readApiResponse(res);
       if (data.success) {
-        setSettings(updatedSettings);
+        setSettings(data.settings || updatedSettings);
         logMsg('Settings configuration saved locally.');
       }
     } catch (err) {
@@ -272,10 +326,42 @@ export default function App() {
         newsletter: true,
         about: true,
         rss: true,
+        categories: true,
         ...(prev.features || {}),
         [key]: value
       }
     }));
+  };
+
+  const updateCategory = (index, patch) => {
+    setSettings(prev => {
+      const nextCategories = [...(prev.categories || DEFAULT_CATEGORIES)];
+      nextCategories[index] = { ...nextCategories[index], ...patch };
+      return { ...prev, categories: nextCategories };
+    });
+  };
+
+  const addCategory = () => {
+    setSettings(prev => {
+      const nextCategories = [...(prev.categories || DEFAULT_CATEGORIES)];
+      const nextNumber = nextCategories.length + 1;
+      nextCategories.push({
+        slug: `category-${nextNumber}`,
+        name: `Category ${nextNumber}`,
+        description: '',
+        color: '#64748b'
+      });
+      return { ...prev, categories: nextCategories };
+    });
+  };
+
+  const removeCategory = (index) => {
+    setSettings(prev => {
+      const nextCategories = [...(prev.categories || DEFAULT_CATEGORIES)];
+      if (nextCategories.length <= 1) return prev;
+      nextCategories.splice(index, 1);
+      return { ...prev, categories: nextCategories };
+    });
   };
 
   // Image base64 upload helper
@@ -633,7 +719,7 @@ export default function App() {
                         title: '',
                         slug: '',
                         description: '',
-                        category: 'Design',
+                        category: categories[0]?.slug || DEFAULT_CATEGORIES[0].slug,
                         tags: '',
                         coverImage: '',
                         date: new Date().toISOString().split('T')[0],
@@ -667,7 +753,7 @@ export default function App() {
                             <div className="post-table-slug">posts/{post.slug}</div>
                           </td>
                           <td>
-                            <span className="tag-badge">{post.category}</span>
+                            <span className="tag-badge">{post.categoryName || categoryBySlug.get(post.category)?.name || post.category}</span>
                           </td>
                           <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{post.date}</td>
                           <td>
@@ -683,6 +769,7 @@ export default function App() {
                                 onClick={() => {
                                   setEditingPost({
                                     ...post,
+                                    category: post.categorySlug || post.category || categories[0]?.slug || DEFAULT_CATEGORIES[0].slug,
                                     tags: Array.isArray(post.tags) ? post.tags.join(', ') : post.tags,
                                     isNew: false
                                   });
@@ -1182,6 +1269,105 @@ export default function App() {
                 </div>
 
                 <div className="brand-settings-card" style={{ marginTop: '30px' }}>
+                  <h3>Categories</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '18px' }}>
+                    Manage the public taxonomy used by post metadata, category archive pages, search, RSS, sitemap, and Schema.org output.
+                  </p>
+                  <div style={{ display: 'grid', gap: '16px' }}>
+                    {categories.map((category, index) => {
+                      const postCount = postCountByCategory[category.slug] || 0;
+                      const categoryColor = /^#[0-9a-fA-F]{6}$/.test(category.color || '') ? category.color : '#64748b';
+                      return (
+                        <div
+                          key={category.slug || index}
+                          style={{
+                            display: 'grid',
+                            gap: '12px',
+                            padding: '16px',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.02)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                            <strong>{category.name || 'Untitled Category'}</strong>
+                            <span className="tag-badge">{postCount} posts</span>
+                          </div>
+                          <div className="category-editor-grid">
+                            <div className="meta-input-group">
+                              <label>Name</label>
+                              <input
+                                type="text"
+                                className="meta-field"
+                                value={category.name || ''}
+                                onChange={(e) => updateCategory(index, { name: e.target.value })}
+                                placeholder="Design"
+                              />
+                            </div>
+                            <div className="meta-input-group">
+                              <label>Slug</label>
+                              <input
+                                type="text"
+                                className="meta-field"
+                                value={category.slug || ''}
+                                onChange={(e) => updateCategory(index, { slug: sanitizeSlugInput(e.target.value) })}
+                                placeholder="design"
+                                disabled={postCount > 0}
+                              />
+                            </div>
+                            <div className="meta-input-group">
+                              <label>Color</label>
+                              <div className="category-color-control">
+                                <input
+                                  type="color"
+                                  className="category-color-input"
+                                  value={categoryColor}
+                                  onChange={(e) => updateCategory(index, { color: e.target.value })}
+                                  aria-label={`${category.name || 'Category'} color`}
+                                />
+                                <span className="category-color-value">{categoryColor}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="meta-input-group">
+                            <label>Description</label>
+                            <textarea
+                              className="meta-field"
+                              style={{ height: '76px', resize: 'vertical' }}
+                              value={category.description || ''}
+                              onChange={(e) => updateCategory(index, { description: e.target.value })}
+                              placeholder="Short description shown on the category archive page."
+                            />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                              {postCount > 0 ? 'Slug and deletion are locked while posts use this category.' : 'Safe to rename or remove before assigning posts.'}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-btn"
+                              style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                              onClick={() => removeCategory(index)}
+                              disabled={categories.length <= 1 || postCount > 0}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '18px', flexWrap: 'wrap' }}>
+                    <button type="button" className="text-btn" style={{ border: '1px dashed rgba(255,255,255,0.16)' }} onClick={addCategory}>
+                      Add Category
+                    </button>
+                    <button className="solid-btn" onClick={() => saveSettings({ ...settings, categories })}>
+                      Save Categories
+                    </button>
+                  </div>
+                </div>
+
+                <div className="brand-settings-card" style={{ marginTop: '30px' }}>
                   <h3>Theme Copy Overrides</h3>
                   <p style={{ color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '18px' }}>
                     Leave fields blank to keep the selected theme defaults.
@@ -1388,10 +1574,11 @@ export default function App() {
                   value={editingPost.category}
                   onChange={(e) => setEditingPost({ ...editingPost, category: e.target.value })}
                 >
-                  <option value="Design">Design</option>
-                  <option value="Development">Development</option>
-                  <option value="Creative">Creative</option>
-                  <option value="Tech">Tech</option>
+                  {categories.map(category => (
+                    <option key={category.slug} value={category.slug}>
+                      {category.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="meta-input-group">

@@ -10,7 +10,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
 </head>
 <body>
   <header class="blog-header">
@@ -28,7 +33,7 @@
 
       <article class="full-post">
         <div class="post-meta">
-          <span class="post-category"><%= post.category %></span>
+          <%- helpers.categoryLink(post) %>
           <span class="meta-divider">•</span>
           <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
         </div>
@@ -49,6 +54,7 @@
     </main>
 
     <aside class="blog-sidebar">
+      <%- helpers.categoryNav(categories, post) %>
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %>" id="widget-<%= widget.id %>">
           <h3 class="widget-title"><%= widget.name %></h3>

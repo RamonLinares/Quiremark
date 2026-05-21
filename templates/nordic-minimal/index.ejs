@@ -13,6 +13,9 @@
   <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
   <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
 </head>
 <body>
   <header class="blog-header">
@@ -31,6 +34,7 @@
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
       <% } %>
+      <%- helpers.categoryArchiveHeader(currentCategory) %>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state">
@@ -38,7 +42,7 @@
         </div>
       <% } else { %>
         <% posts.forEach((post, index) => { %>
-          <article class="post-card" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
+          <article class="post-card" data-search-card data-search-text="<%= [post.title, post.description, post.categoryName, ...((post.tags || []))].join(' ') %>">
             <% if (post.coverImage) { %>
               <div class="post-image-container">
                 <a href="/posts/<%= post.slug %>/index.html">
@@ -47,7 +51,7 @@
               </div>
             <% } %>
             <div class="post-meta">
-              <span class="post-category"><%= post.category %></span>
+              <%- helpers.categoryLink(post) %>
               <span class="meta-divider">•</span>
               <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
             </div>
@@ -62,6 +66,7 @@
     </main>
 
     <aside class="blog-sidebar">
+      <%- helpers.categoryNav(categories, currentCategory) %>
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %>" id="widget-<%= widget.id %>">
           <h3 class="widget-title"><%= widget.name %></h3>

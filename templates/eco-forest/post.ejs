@@ -10,7 +10,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
 </head>
 <body class="eco-theme">
   <div class="eco-bg-glow"></div>
@@ -30,7 +35,7 @@
 
       <article class="full-post eco-panel">
         <div class="post-meta">
-          <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
+          <%- helpers.categoryLink(post, { upper: true }) %>
           <span class="meta-divider">&bull;</span>
           <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
         </div>
@@ -51,6 +56,7 @@
     </main>
 
     <aside class="blog-sidebar">
+      <%- helpers.categoryNav(categories, post, { className: 'widget widget-categories eco-panel' }) %>
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %> eco-panel" id="widget-<%= widget.id %>">
           <h3 class="widget-title"><%= widget.name %></h3>

@@ -3,7 +3,7 @@ title: "Designing Premium Web UIs: Glassmorphism and Depth"
 slug: "designing-premium-uis"
 description: "How to craft awe-inspiring interfaces using visual depth, backdrop-filters, custom color palettes, and micro-interactions."
 date: "2026-05-19"
-category: "Development"
+category: "development"
 tags: ["UI","UX","CSS","Glassmorphism"]
 coverImage: "/content/images/image_1779285567734.png"
 draft: false

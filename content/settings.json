@@ -15,14 +15,59 @@
     "linkedin": "https://linkedin.com",
     "instagram": "https://instagram.com"
   },
-  "selectedTemplate": "eco-forest",
+  "selectedTemplate": "sunset-vaporwave",
   "locale": "en",
   "features": {
     "search": true,
     "newsletter": true,
     "about": true,
-    "rss": true
+    "rss": true,
+    "categories": true
   },
+  "categories": [
+    {
+      "slug": "design",
+      "name": "Design",
+      "description": "Visual design, brand systems, typography, and creative direction.",
+      "color": "#a855f7"
+    },
+    {
+      "slug": "development",
+      "name": "Development",
+      "description": "Engineering notes, architecture, tooling, and implementation details.",
+      "color": "#06b6d4"
+    },
+    {
+      "slug": "creative",
+      "name": "Creative",
+      "description": "Experiments across art, media, writing, and making.",
+      "color": "#ec4899"
+    },
+    {
+      "slug": "tech",
+      "name": "Tech",
+      "description": "Technology trends, platforms, and digital culture.",
+      "color": "#22c55e"
+    },
+    {
+      "slug": "research",
+      "name": "Research",
+      "description": "Field notes, source reviews, experiments, and structured investigation logs.",
+      "color": "#f59e0b"
+    },
+    {
+      "slug": "tutorials",
+      "name": "Tutorials",
+      "description": "Step-by-step learning material, implementation walkthroughs, and practical guides.",
+      "color": "#14b8a6"
+    },
+    {
+      "slug": "opinion",
+      "name": "Opinion",
+      "description": "Short essays, editorial notes, and point-of-view pieces about digital publishing.",
+      "color": "#ef4444"
+    }
+  ],
   "themeText": {
     "searchLabel": "",
     "searchPlaceholder": "",

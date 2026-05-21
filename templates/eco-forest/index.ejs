@@ -13,6 +13,9 @@
   <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
   <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
 </head>
 <body class="eco-theme">
   <!-- Subtle organic branch/leaf watermarks in the background if styled -->
@@ -34,6 +37,7 @@
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
       <% } %>
+      <%- helpers.categoryArchiveHeader(currentCategory) %>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state eco-panel">
@@ -41,7 +45,7 @@
         </div>
       <% } else { %>
         <% posts.forEach((post, index) => { %>
-          <article class="post-card eco-panel" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
+          <article class="post-card eco-panel" data-search-card data-search-text="<%= [post.title, post.description, post.categoryName, ...((post.tags || []))].join(' ') %>">
             <% if (post.coverImage) { %>
               <div class="post-image-container">
                 <a href="/posts/<%= post.slug %>/index.html">
@@ -51,7 +55,7 @@
             <% } %>
             <div class="post-card-content">
               <div class="post-meta">
-                <span class="post-category"><%= post.category %></span>
+                <%- helpers.categoryLink(post) %>
                 <span class="meta-divider">&bull;</span>
                 <time class="post-date" datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
               </div>
@@ -69,6 +73,7 @@
     </main>
 
     <aside class="blog-sidebar">
+      <%- helpers.categoryNav(categories, currentCategory, { className: 'widget widget-categories eco-panel' }) %>
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %> eco-panel" id="widget-<%= widget.id %>">
           <h3 class="widget-title"><%= widget.name %></h3>

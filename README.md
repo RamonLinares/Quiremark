@@ -8,7 +8,8 @@
 - **Local admin dashboard**: The `/admin` React app manages posts, settings, themes, widgets, publishing, and deployment.
 - **Authenticated local API**: Login issues an expiring bearer token, and all non-login `/api/*` routes require it.
 - **Safer static compiler**: Markdown is sanitized before template injection, slugs are validated, and output paths are constrained to the expected folders.
-- **Optional public features**: Search, RSS, mailing-list signup, and About Me blocks can be toggled from Settings.
+- **Optional public features**: Search, category archives, RSS, mailing-list signup, and About Me blocks can be toggled from Settings.
+- **First-class categories**: Categories are configurable records with stable slugs, names, descriptions, and colors. Publish generates category archive pages under `out/categories/<slug>/`, category links in post metadata, category navigation, sitemap entries, LLM Markdown alternates, RSS categories, and Schema.org collection metadata.
 - **Client-side search**: When enabled, publish generates `out/search.json` and `out/search.js`, and every index template renders a search box that filters visible posts and shows linked results.
 - **Multilingual public UI**: The website locale controls built-in theme labels, date/time formatting, search text, newsletter copy, footer copy, and default widget labels. Post content is left exactly as authored.
 - **SEO and AI discovery output**: Generated pages include canonical metadata, Open Graph/Twitter tags, Schema.org JSON-LD, semantic dates, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt`, and Markdown alternates for LLM-friendly reading.
@@ -66,8 +67,17 @@ Locale is a top-level site setting:
     "search": true,
     "newsletter": true,
     "about": true,
-    "rss": true
+    "rss": true,
+    "categories": true
   },
+  "categories": [
+    {
+      "slug": "design",
+      "name": "Design",
+      "description": "Visual design, brand systems, typography, and creative direction.",
+      "color": "#a855f7"
+    }
+  ],
   "siteUrl": "https://example.com",
   "seoDescription": "A short public description for search and social previews.",
   "seoKeywords": "design, development, static blog",
@@ -76,7 +86,15 @@ Locale is a top-level site setting:
 }
 ```
 
-The `features` flags control public output. Disabled search omits the search UI, `search.css`, `search.js`, `search.json`, and Schema.org `SearchAction`. Disabled RSS omits `feed.xml` and feed discovery links. Disabled newsletter or about features hide matching widgets even if those widgets remain enabled in the widget list.
+The `features` flags control public output. Disabled search omits the search UI, `search.css`, `search.js`, `search.json`, and Schema.org `SearchAction`. Disabled categories omit category navigation, `taxonomy.css`, and generated category archive pages. Disabled RSS omits `feed.xml` and feed discovery links. Disabled newsletter or about features hide matching widgets even if those widgets remain enabled in the widget list.
+
+Posts store their category as the category `slug` in front matter:
+
+```yaml
+category: "design"
+```
+
+The public templates display the configured category `name`, so category labels can be renamed without changing post front matter or public category URLs. Slugs are locked in the admin while posts still use that category.
 
 Newsletter widgets support:
 
@@ -110,9 +128,10 @@ Theme text overrides are stored under `themeText` in `content/settings.json`. Em
 Supported variables include:
 
 - `{date}`, `{time}`, `{generatedAt}`, `{isoDate}`, `{year}`, `{month}`, `{day}`
-- `{locale}`, `{language}`, `{siteName}`, `{siteSubtitle}`, `{authorName}`, `{authorBio}`, `{template}`, `{homeUrl}`, `{postCount}`
-- `{lastPost}`, `{lastPostUrl}`, `{lastPostTitle}`, `{lastPostDescription}`, `{lastPostDate}`, `{lastPostIsoDate}`, `{lastPostCategory}`, `{lastPostTags}`, `{lastPostReadingTime}`
-- `{post}`, `{postUrl}`, `{postTitle}`, `{postDescription}`, `{postDate}`, `{postIsoDate}`, `{postCategory}`, `{postTags}`, `{postReadingTime}`
+- `{locale}`, `{language}`, `{siteName}`, `{siteSubtitle}`, `{authorName}`, `{authorBio}`, `{template}`, `{homeUrl}`, `{postCount}`, `{categoryCount}`, `{categories}`
+- `{category}`, `{categoryName}`, `{categorySlug}`, `{categoryDescription}`, `{categoryUrl}`
+- `{lastPost}`, `{lastPostUrl}`, `{lastPostTitle}`, `{lastPostDescription}`, `{lastPostDate}`, `{lastPostIsoDate}`, `{lastPostCategory}`, `{lastPostCategoryUrl}`, `{lastPostTags}`, `{lastPostReadingTime}`
+- `{post}`, `{postUrl}`, `{postTitle}`, `{postDescription}`, `{postDate}`, `{postIsoDate}`, `{postCategory}`, `{postCategoryUrl}`, `{postTags}`, `{postReadingTime}`
 
 `{date}`, `{time}`, `{generatedAt}`, `{month}`, `{lastPostDate}`, and `{postDate}` use the website locale. `{lastPost}` is the generated URL for the newest published post. `{post*}` variables resolve on individual post pages and are blank on index pages.
 
@@ -125,9 +144,9 @@ The compiler:
 - Cleans `out/` while preserving `out/.git`.
 - Reads non-draft Markdown posts.
 - Sanitizes rendered Markdown HTML.
-- Generates `index.html`, clean post URLs under `out/posts/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
-- Adds Schema.org `WebSite`, `Blog`, `BlogPosting`, `Person`, `Organization`, and `BreadcrumbList` JSON-LD where relevant.
-- Copies the selected template stylesheet, optional shared search stylesheet/script, favicon, and uploaded images.
+- Generates `index.html`, clean post URLs under `out/posts/<slug>/index.html`, optional category archives under `out/categories/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
+- Adds Schema.org `WebSite`, `Blog`, `BlogPosting`, `CollectionPage`, `ItemList`, `Person`, `Organization`, and `BreadcrumbList` JSON-LD where relevant.
+- Copies the selected template stylesheet, optional shared search stylesheet/script, optional shared taxonomy stylesheet, favicon, and uploaded images.
 
 Click **Deploy** in the dashboard or send an authenticated `POST /api/deploy`.
 
@@ -138,7 +157,7 @@ The deployer only accepts GitHub SSH/HTTPS remotes, safe branch names, and bound
 ```text
 content/                 Blog settings, posts, and uploaded images
 src/                     React admin dashboard
-templates/               EJS themes plus shared search.js
+templates/               EJS themes plus shared search/taxonomy assets
 out/                     Generated static site output
 dist/                    Built admin dashboard bundle
 server.js                Express API, compiler, and deployer
