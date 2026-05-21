@@ -138,6 +138,8 @@ export default function App() {
             saveSettings({ ...settings, authorAvatar: data.url });
           } else if (type === 'post') {
             setEditingPost(prev => ({ ...prev, coverImage: data.url }));
+          } else if (type === 'inline') {
+            insertInlineImage(data.url);
           }
           logMsg(`Asset uploaded successfully: ${data.url}`);
         }
@@ -271,6 +273,27 @@ export default function App() {
     
     setEditingPost(prev => ({ ...prev, content: before + replacement + after }));
     textarea.focus();
+  };
+
+  // Helper to insert an uploaded inline image into selection
+  const insertInlineImage = (imageUrl) => {
+    const textarea = document.getElementById('editor-textarea');
+    if (!textarea) {
+      setEditingPost(prev => ({ ...prev, content: prev.content + `\n![Image Description](${imageUrl})\n` }));
+      return;
+    }
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+    const replacement = `\n![Image Description](${imageUrl})\n`;
+    
+    setEditingPost(prev => ({ ...prev, content: before + replacement + after }));
+    setTimeout(() => {
+      textarea.focus();
+    }, 50);
   };
 
   if (!isLoggedIn) {
@@ -1027,11 +1050,30 @@ export default function App() {
                   <div className="editor-card-header">
                     <span>📝 MARKDOWN EDITOR PANEL</span>
                     <div className="editor-toolbar">
-                      <button className="toolbar-btn" onClick={() => insertMarkdown('bold')}><b>B</b></button>
-                      <button className="toolbar-btn" onClick={() => insertMarkdown('italic')}><i>I</i></button>
-                      <button className="toolbar-btn" onClick={() => insertMarkdown('link')}>🔗</button>
-                      <button className="toolbar-btn" onClick={() => insertMarkdown('code')}><code>&lt;/&gt;</code></button>
-                      <button className="toolbar-btn" onClick={() => insertMarkdown('quote')}>❝</button>
+                      <button className="toolbar-btn" onClick={() => insertMarkdown('bold')} title="Bold"><b>B</b></button>
+                      <button className="toolbar-btn" onClick={() => insertMarkdown('italic')} title="Italic"><i>I</i></button>
+                      <button className="toolbar-btn" onClick={() => insertMarkdown('link')} title="Insert Link">🔗</button>
+                      <button className="toolbar-btn" onClick={() => insertMarkdown('code')} title="Code Block"><code>&lt;/&gt;</code></button>
+                      <button className="toolbar-btn" onClick={() => insertMarkdown('quote')} title="Quote">❝</button>
+                      <button 
+                        className="toolbar-btn" 
+                        title="Upload & Insert Inline Image"
+                        onClick={() => document.getElementById('inline-image-uploader').click()}
+                      >
+                        📷
+                      </button>
+                      <input 
+                        type="file" 
+                        id="inline-image-uploader" 
+                        accept="image/*" 
+                        style={{ display: 'none' }} 
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleImageUpload(e.target.files[0], 'inline');
+                            e.target.value = ''; // Reset
+                          }
+                        }}
+                      />
                     </div>
                   </div>
                   <textarea 
