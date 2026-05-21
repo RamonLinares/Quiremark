@@ -1,12 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+const TOKEN_KEY = 'zenith_token';
+const TOKEN_EXPIRY_KEY = 'zenith_token_expires_at';
+
+const sanitizeSlugInput = (value) => value
+  .toLowerCase()
+  .replace(/[^a-z0-9-]+/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/(^-|-$)/g, '');
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '');
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, posts, appearance, settings, publisher
-  
+
   // App States
   const [settings, setSettings] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -14,7 +25,7 @@ export default function App() {
     '[SYSTEM] ZenithPress Admin Dashboard booted.',
     '[SYSTEM] Local Express server connection status: VERIFIED.'
   ]);
-  
+
   // Post Editor States
   const [isEditingPost, setIsEditingPost] = useState(false);
   const [editingPost, setEditingPost] = useState({
@@ -29,7 +40,7 @@ export default function App() {
     draft: false,
     isNew: true
   });
-  
+
   // Deploy settings
   const [deploySettings, setDeploySettings] = useState({
     remoteUrl: '',
@@ -39,33 +50,72 @@ export default function App() {
 
   const [isCompiling, setIsCompiling] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  const previewHtml = useMemo(
+    () => DOMPurify.sanitize(marked.parse(editingPost.content || '*Empty post draft...*')),
+    [editingPost.content]
+  );
 
   // Initialize
   useEffect(() => {
-    const token = localStorage.getItem('zenith_token');
-    if (token) {
+    const expiresAt = Number(localStorage.getItem(TOKEN_EXPIRY_KEY) || 0);
+    if (authToken && expiresAt > Date.now()) {
       setIsLoggedIn(true);
-      fetchData();
+      fetchData(authToken);
+    } else if (authToken) {
+      handleLogout('Session expired. Please sign in again.');
     }
-  }, [isLoggedIn]);
+  }, []);
 
-  const fetchData = async () => {
+  const handleUnauthorized = (message = 'Session expired. Please sign in again.') => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    setAuthToken('');
+    setIsLoggedIn(false);
+    setSettings(null);
+    setAuthError(message);
+  };
+
+  const apiFetch = async (url, options = {}, tokenOverride = authToken) => {
+    const headers = new Headers(options.headers || {});
+    if (tokenOverride) {
+      headers.set('Authorization', `Bearer ${tokenOverride}`);
+    }
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      handleUnauthorized();
+    }
+    return res;
+  };
+
+  const readApiResponse = async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || data.message || `Request failed with status ${res.status}`);
+    }
+    return data;
+  };
+
+  const fetchData = async (tokenOverride = authToken) => {
     try {
-      const settingsRes = await fetch('/api/settings');
-      const settingsData = await settingsRes.json();
+      const [settingsRes, postsRes] = await Promise.all([
+        apiFetch('/api/settings', {}, tokenOverride),
+        apiFetch('/api/posts', {}, tokenOverride)
+      ]);
+      const settingsData = await readApiResponse(settingsRes);
+      const postsData = await readApiResponse(postsRes);
       setSettings(settingsData);
       if (settingsData.socialLinks?.github) {
+        const githubRemote = settingsData.socialLinks.github.endsWith('.git')
+          ? settingsData.socialLinks.github
+          : `${settingsData.socialLinks.github}.git`;
         setDeploySettings(prev => ({
           ...prev,
-          remoteUrl: settingsData.socialLinks.github + '.git'
+          remoteUrl: githubRemote
         }));
       }
-
-      const postsRes = await fetch('/api/posts');
-      const postsData = await postsRes.json();
       setPosts(postsData);
     } catch (err) {
-      logMsg('Failed to sync settings and post databases from local Express server.', 'error');
+      logMsg(err.message || 'Failed to sync settings and post databases from local Express server.', 'error');
     }
   };
 
@@ -85,9 +135,13 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success) {
-        localStorage.setItem('zenith_token', data.token);
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(TOKEN_EXPIRY_KEY, String(data.expiresAt || 0));
+        setAuthToken(data.token);
         setIsLoggedIn(true);
+        setPassword('');
         setAuthError('');
+        fetchData(data.token);
       } else {
         setAuthError(data.message || 'Invalid password.');
       }
@@ -96,35 +150,40 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('zenith_token');
+  const handleLogout = (message = '') => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    setAuthToken('');
     setIsLoggedIn(false);
+    setSettings(null);
+    if (typeof message === 'string' && message) setAuthError(message);
   };
 
   // Settings Save handler
   const saveSettings = async (updatedSettings) => {
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSettings)
       });
-      const data = await res.json();
+      const data = await readApiResponse(res);
       if (data.success) {
         setSettings(updatedSettings);
         logMsg('Settings configuration saved locally.');
       }
     } catch (err) {
-      logMsg('Failed to save settings configurations.', 'error');
+      logMsg(err.message || 'Failed to save settings configurations.', 'error');
     }
   };
 
   // Image base64 upload helper
   const handleImageUpload = async (file, type) => {
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const res = await fetch('/api/images/upload', {
+        const res = await apiFetch('/api/images/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -132,7 +191,7 @@ export default function App() {
             base64Data: reader.result
           })
         });
-        const data = await res.json();
+        const data = await readApiResponse(res);
         if (data.success) {
           if (type === 'avatar') {
             saveSettings({ ...settings, authorAvatar: data.url });
@@ -144,7 +203,7 @@ export default function App() {
           logMsg(`Asset uploaded successfully: ${data.url}`);
         }
       } catch (err) {
-        logMsg('Image upload failed.', 'error');
+        logMsg(err.message || 'Image upload failed.', 'error');
       }
     };
     reader.readAsDataURL(file);
@@ -157,18 +216,18 @@ export default function App() {
       const url = editingPost.isNew ? '/api/posts' : `/api/posts/${editingPost.slug}`;
       const method = editingPost.isNew ? 'POST' : 'PUT';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editingPost,
-          tags: typeof editingPost.tags === 'string' 
-            ? editingPost.tags.split(',').map(t => t.trim()) 
+          tags: typeof editingPost.tags === 'string'
+            ? editingPost.tags.split(',').map(t => t.trim())
             : editingPost.tags
         })
       });
-      
-      const data = await res.json();
+
+      const data = await readApiResponse(res);
       if (data.success) {
         setIsEditingPost(false);
         fetchData();
@@ -177,7 +236,7 @@ export default function App() {
         logMsg(data.error || 'Failed to save post.', 'error');
       }
     } catch (err) {
-      logMsg('Error saving post.', 'error');
+      logMsg(err.message || 'Error saving post.', 'error');
     }
   };
 
@@ -185,14 +244,14 @@ export default function App() {
   const handleDeletePost = async (slug) => {
     if (!window.confirm(`Are you sure you want to delete the post "${slug}"?`)) return;
     try {
-      const res = await fetch(`/api/posts/${slug}`, { method: 'DELETE' });
-      const data = await res.json();
+      const res = await apiFetch(`/api/posts/${slug}`, { method: 'DELETE' });
+      const data = await readApiResponse(res);
       if (data.success) {
         fetchData();
         logMsg(`Article post deleted: "${slug}"`);
       }
     } catch (err) {
-      logMsg('Failed to delete post.', 'error');
+      logMsg(err.message || 'Failed to delete post.', 'error');
     }
   };
 
@@ -202,8 +261,8 @@ export default function App() {
     setActiveTab('publisher');
     logMsg('Initiating static pages compiler...');
     try {
-      const res = await fetch('/api/publish', { method: 'POST' });
-      const data = await res.json();
+      const res = await apiFetch('/api/publish', { method: 'POST' });
+      const data = await readApiResponse(res);
       if (data.success) {
         // Stream build logs
         data.log.forEach(l => logMsg(l));
@@ -212,7 +271,7 @@ export default function App() {
         logMsg(data.error || 'Compilation failed.', 'error');
       }
     } catch (err) {
-      logMsg('Compilation request failed.', 'error');
+      logMsg(err.message || 'Compilation request failed.', 'error');
     } finally {
       setIsCompiling(false);
     }
@@ -228,17 +287,17 @@ export default function App() {
     setActiveTab('publisher');
     logMsg(`Initiating shell Deployer to target: ${deploySettings.remoteUrl}...`);
     try {
-      const res = await fetch('/api/deploy', {
+      const res = await apiFetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(deploySettings)
       });
-      const data = await res.json();
-      
+      const data = await res.json().catch(() => ({}));
+
       // Stream deploy logs
-      data.log.forEach(l => logMsg(l, 'deploy'));
-      
-      if (data.success) {
+      (data.log || []).forEach(l => logMsg(l, 'deploy'));
+
+      if (res.ok && data.success) {
         logMsg(`Deployment completed successfully! Pushed static pages to ${deploySettings.branch}.`);
         alert('Blog successfully published and deployed to GitHub Pages!');
       } else {
@@ -246,7 +305,7 @@ export default function App() {
         alert(`Deploy failed: ${data.error}`);
       }
     } catch (err) {
-      logMsg('Deploy request failed.', 'error');
+      logMsg(err.message || 'Deploy request failed.', 'error');
     } finally {
       setIsDeploying(false);
     }
@@ -256,21 +315,21 @@ export default function App() {
   const insertMarkdown = (syntax) => {
     const textarea = document.getElementById('editor-textarea');
     if (!textarea) return;
-    
+
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const before = text.substring(0, start);
     const after = text.substring(end, text.length);
     const selected = text.substring(start, end);
-    
+
     let replacement = '';
     if (syntax === 'bold') replacement = `**${selected || 'bold text'}**`;
     else if (syntax === 'italic') replacement = `*${selected || 'italic text'}*`;
     else if (syntax === 'link') replacement = `[${selected || 'link description'}](https://example.com)`;
     else if (syntax === 'code') replacement = `\`${selected || 'code code'}\``;
     else if (syntax === 'quote') replacement = `\n> ${selected || 'Blockquote text'}\n`;
-    
+
     setEditingPost(prev => ({ ...prev, content: before + replacement + after }));
     textarea.focus();
   };
@@ -282,14 +341,14 @@ export default function App() {
       setEditingPost(prev => ({ ...prev, content: prev.content + `\n![Image Description](${imageUrl})\n` }));
       return;
     }
-    
+
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
     const before = text.substring(0, start);
     const after = text.substring(end, text.length);
     const replacement = `\n![Image Description](${imageUrl})\n`;
-    
+
     setEditingPost(prev => ({ ...prev, content: before + replacement + after }));
     setTimeout(() => {
       textarea.focus();
@@ -307,13 +366,13 @@ export default function App() {
           <form onSubmit={handleLogin}>
             <div className="auth-input-group">
               <label>Administrative Password</label>
-              <input 
-                type="password" 
-                className="auth-input" 
+              <input
+                type="password"
+                className="auth-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password (default: admin)"
-                required 
+                required
               />
             </div>
             <button type="submit" className="auth-btn">Authenticate Console</button>
@@ -332,38 +391,38 @@ export default function App() {
     <div className="dashboard-container">
       <div className="admin-glow-1"></div>
       <div className="admin-glow-2"></div>
-      
+
       {/* Sidebar navigation */}
       <div className="sidebar">
         <div className="sidebar-logo">
           <span>☄️</span> ZenithPress
         </div>
         <ul className="sidebar-menu">
-          <li 
+          <li
             className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => { setActiveTab('dashboard'); setIsEditingPost(false); }}
           >
             📊 Dashboard
           </li>
-          <li 
+          <li
             className={`menu-item ${activeTab === 'posts' ? 'active' : ''}`}
             onClick={() => { setActiveTab('posts'); }}
           >
             📝 Manage Posts
           </li>
-          <li 
+          <li
             className={`menu-item ${activeTab === 'appearance' ? 'active' : ''}`}
             onClick={() => { setActiveTab('appearance'); setIsEditingPost(false); }}
           >
             🎨 Appearance
           </li>
-          <li 
+          <li
             className={`menu-item ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => { setActiveTab('settings'); setIsEditingPost(false); }}
           >
             ⚙️ Site Settings
           </li>
-          <li 
+          <li
             className={`menu-item ${activeTab === 'publisher' ? 'active' : ''}`}
             onClick={() => { setActiveTab('publisher'); setIsEditingPost(false); }}
           >
@@ -379,7 +438,7 @@ export default function App() {
 
       {/* Main Panel View */}
       <div className="main-panel">
-        
+
         {/* Render Tab Views */}
         {!isEditingPost ? (
           <>
@@ -436,9 +495,9 @@ export default function App() {
                     </p>
                     <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                       <button className="solid-btn" onClick={handleCompile}>Build Local</button>
-                      <button 
-                        className="text-btn" 
-                        style={{ border: '1px solid rgba(255,255,255,0.1)' }} 
+                      <button
+                        className="text-btn"
+                        style={{ border: '1px solid rgba(255,255,255,0.1)' }}
                         onClick={() => setActiveTab('publisher')}
                       >
                         Push to GitHub Pages
@@ -448,7 +507,7 @@ export default function App() {
                   <div className="brand-settings-card">
                     <h3>💡 Creative Templates</h3>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                      Switch themes instantly in the Appearance tab. You can toggle between <b>NordicMinimal</b> (clean grid light), <b>NeoGlass</b> (dark visual depth), and <b>CyberMonospace</b> (retro monochrome terminal).
+                      Switch themes instantly in the Appearance tab. Choose from <b>NordicMinimal</b>, <b>NeoGlass</b>, <b>CyberMonospace</b>, <b>Sunset Vaporwave</b>, <b>Brutalist Newspaper</b>, and <b>Eco-Forest</b>.
                     </p>
                     <button className="solid-btn" style={{ alignSelf: 'flex-start', marginTop: '10px' }} onClick={() => setActiveTab('appearance')}>
                       Manage Themes & Widgets
@@ -466,7 +525,7 @@ export default function App() {
                     <h2>Manage Posts</h2>
                     <p>Compose new articles, write tags, and update drafts.</p>
                   </div>
-                  <button 
+                  <button
                     className="quick-action-btn"
                     onClick={() => {
                       setEditingPost({
@@ -517,8 +576,8 @@ export default function App() {
                           </td>
                           <td>
                             <div className="action-btns" style={{ justifyContent: 'flex-end' }}>
-                              <button 
-                                className="icon-btn edit" 
+                              <button
+                                className="icon-btn edit"
                                 title="Edit Post"
                                 onClick={() => {
                                   setEditingPost({
@@ -531,8 +590,8 @@ export default function App() {
                               >
                                 ✏️
                               </button>
-                              <button 
-                                className="icon-btn delete" 
+                              <button
+                                className="icon-btn delete"
                                 title="Delete Post"
                                 onClick={() => handleDeletePost(post.slug)}
                               >
@@ -562,9 +621,9 @@ export default function App() {
                   <div>
                     <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: '20px' }}>Select Styling Template</h3>
                     <div className="templates-grid">
-                      
+
                       {/* Nordic Minimal Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'nordic-minimal' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'nordic-minimal' })}
                       >
@@ -579,7 +638,7 @@ export default function App() {
                       </div>
 
                       {/* Neo Glass Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'neo-glass' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'neo-glass' })}
                       >
@@ -594,7 +653,7 @@ export default function App() {
                       </div>
 
                       {/* Cyber Monospace Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'cyber-monospace' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'cyber-monospace' })}
                       >
@@ -609,7 +668,7 @@ export default function App() {
                       </div>
 
                       {/* Sunset Vaporwave Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'sunset-vaporwave' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'sunset-vaporwave' })}
                       >
@@ -624,7 +683,7 @@ export default function App() {
                       </div>
 
                       {/* Brutalist Newspaper Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'brutalist-newspaper' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'brutalist-newspaper' })}
                       >
@@ -639,7 +698,7 @@ export default function App() {
                       </div>
 
                       {/* Eco-Forest Minimalist Card */}
-                      <div 
+                      <div
                         className={`template-card ${settings.selectedTemplate === 'eco-forest' ? 'active' : ''}`}
                         onClick={() => saveSettings({ ...settings, selectedTemplate: 'eco-forest' })}
                       >
@@ -665,8 +724,8 @@ export default function App() {
                           <div className="widget-card-header">
                             <h4>{widget.name} ({widget.position})</h4>
                             <label className="switch">
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={widget.enabled}
                                 onChange={(e) => {
                                   const updatedWidgets = [...settings.widgets];
@@ -681,21 +740,35 @@ export default function App() {
                             Type: {widget.type}
                           </span>
                           {widget.type === 'newsletter' && widget.enabled && (
-                            <input 
-                              type="text"
-                              className="meta-field"
-                              value={widget.placeholderText || ''}
-                              onChange={(e) => {
-                                const updatedWidgets = [...settings.widgets];
-                                updatedWidgets[idx].placeholderText = e.target.value;
-                                setSettings({ ...settings, widgets: updatedWidgets });
-                              }}
-                              onBlur={() => saveSettings(settings)}
-                              placeholder="Newsletter placeholder text..."
-                            />
+                            <>
+                              <input
+                                type="text"
+                                className="meta-field"
+                                value={widget.placeholderText || ''}
+                                onChange={(e) => {
+                                  const updatedWidgets = [...settings.widgets];
+                                  updatedWidgets[idx].placeholderText = e.target.value;
+                                  setSettings({ ...settings, widgets: updatedWidgets });
+                                }}
+                                onBlur={() => saveSettings(settings)}
+                                placeholder="Newsletter placeholder text..."
+                              />
+                              <input
+                                type="url"
+                                className="meta-field"
+                                value={widget.actionUrl || ''}
+                                onChange={(e) => {
+                                  const updatedWidgets = [...settings.widgets];
+                                  updatedWidgets[idx].actionUrl = e.target.value;
+                                  setSettings({ ...settings, widgets: updatedWidgets });
+                                }}
+                                onBlur={() => saveSettings(settings)}
+                                placeholder="Newsletter form endpoint URL..."
+                              />
+                            </>
                           )}
                           {widget.type === 'custom-html' && widget.enabled && (
-                            <textarea 
+                            <textarea
                               className="meta-field"
                               style={{ height: '80px', fontFamily: 'monospace', fontSize: '0.8rem' }}
                               value={widget.htmlContent || ''}
@@ -710,10 +783,10 @@ export default function App() {
                           )}
                         </div>
                       ))}
-                      
+
                       {/* Button to seed custom widgets */}
-                      <button 
-                        className="text-btn" 
+                      <button
+                        className="text-btn"
                         style={{ border: '1px dashed rgba(255,255,255,0.1)', width: '100%' }}
                         onClick={() => {
                           const customId = `custom-${Date.now()}`;
@@ -750,23 +823,23 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '30px' }}>
                   <div className="brand-settings-card">
                     <h3>📢 Branding Configuration</h3>
-                    
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                       <div className="meta-input-group">
                         <label>Site Name</label>
-                        <input 
-                          type="text" 
-                          className="meta-field" 
-                          value={settings.siteName} 
+                        <input
+                          type="text"
+                          className="meta-field"
+                          value={settings.siteName}
                           onChange={(e) => setSettings({ ...settings, siteName: e.target.value })}
                         />
                       </div>
                       <div className="meta-input-group">
                         <label>Site Subtitle</label>
-                        <input 
-                          type="text" 
-                          className="meta-field" 
-                          value={settings.siteSubtitle} 
+                        <input
+                          type="text"
+                          className="meta-field"
+                          value={settings.siteSubtitle}
                           onChange={(e) => setSettings({ ...settings, siteSubtitle: e.target.value })}
                         />
                       </div>
@@ -775,10 +848,10 @@ export default function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                       <div className="meta-input-group">
                         <label>Author Display Name</label>
-                        <input 
-                          type="text" 
-                          className="meta-field" 
-                          value={settings.authorName} 
+                        <input
+                          type="text"
+                          className="meta-field"
+                          value={settings.authorName}
                           onChange={(e) => setSettings({ ...settings, authorName: e.target.value })}
                         />
                       </div>
@@ -786,37 +859,37 @@ export default function App() {
                         <label>Author Profile Picture (Avatar URL)</label>
                         <div className="avatar-preview-container">
                           {settings.authorAvatar && <img src={settings.authorAvatar} className="avatar-preview" />}
-                          <input 
-                            type="text" 
-                            className="meta-field" 
+                          <input
+                            type="text"
+                            className="meta-field"
                             style={{ flexGrow: 1 }}
-                            value={settings.authorAvatar} 
+                            value={settings.authorAvatar}
                             onChange={(e) => setSettings({ ...settings, authorAvatar: e.target.value })}
                             placeholder="Avatar URL or Upload image..."
                           />
                         </div>
-                        <input 
-                          type="file" 
+                        <input
+                          type="file"
                           accept="image/*"
                           style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
-                          onChange={(e) => handleImageUpload(e.target.files[0], 'avatar')} 
+                          onChange={(e) => handleImageUpload(e.target.files[0], 'avatar')}
                         />
                       </div>
                     </div>
 
                     <div className="meta-input-group">
                       <label>Author Short Biography</label>
-                      <textarea 
-                        className="meta-field" 
+                      <textarea
+                        className="meta-field"
                         style={{ height: '80px', resize: 'none' }}
-                        value={settings.authorBio} 
+                        value={settings.authorBio}
                         onChange={(e) => setSettings({ ...settings, authorBio: e.target.value })}
                       />
                     </div>
 
-                    <button 
-                      className="solid-btn" 
-                      style={{ alignSelf: 'flex-start', marginTop: '10px' }} 
+                    <button
+                      className="solid-btn"
+                      style={{ alignSelf: 'flex-start', marginTop: '10px' }}
                       onClick={() => saveSettings(settings)}
                     >
                       💾 Save Branding Settings
@@ -825,13 +898,13 @@ export default function App() {
 
                   <div className="brand-settings-card">
                     <h3>📱 Social Handles</h3>
-                    
+
                     <div className="meta-input-group">
                       <label>GitHub Profile / Repo</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
-                        value={settings.socialLinks.github} 
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={settings.socialLinks.github}
                         onChange={(e) => setSettings({
                           ...settings,
                           socialLinks: { ...settings.socialLinks, github: e.target.value }
@@ -841,10 +914,10 @@ export default function App() {
                     </div>
                     <div className="meta-input-group">
                       <label>Twitter/X URL</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
-                        value={settings.socialLinks.twitter} 
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={settings.socialLinks.twitter}
                         onChange={(e) => setSettings({
                           ...settings,
                           socialLinks: { ...settings.socialLinks, twitter: e.target.value }
@@ -853,10 +926,10 @@ export default function App() {
                     </div>
                     <div className="meta-input-group">
                       <label>LinkedIn URL</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
-                        value={settings.socialLinks.linkedin} 
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={settings.socialLinks.linkedin}
                         onChange={(e) => setSettings({
                           ...settings,
                           socialLinks: { ...settings.socialLinks, linkedin: e.target.value }
@@ -864,9 +937,9 @@ export default function App() {
                       />
                     </div>
 
-                    <button 
-                      className="solid-btn" 
-                      style={{ alignSelf: 'flex-start', marginTop: '10px' }} 
+                    <button
+                      className="solid-btn"
+                      style={{ alignSelf: 'flex-start', marginTop: '10px' }}
                       onClick={() => saveSettings(settings)}
                     >
                       💾 Save Social Links
@@ -889,12 +962,12 @@ export default function App() {
                 <div className="publisher-layout">
                   <div className="brand-settings-card" style={{ height: 'fit-content' }}>
                     <h3 style={{ fontSize: '1.15rem' }}>⚙️ Deployment Variables</h3>
-                    
+
                     <div className="meta-input-group" style={{ marginTop: '10px' }}>
                       <label>GitHub Remote Repository Target</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
+                      <input
+                        type="text"
+                        className="meta-field"
                         value={deploySettings.remoteUrl}
                         onChange={(e) => setDeploySettings({ ...deploySettings, remoteUrl: e.target.value })}
                         placeholder="git@github.com:user/repo.git"
@@ -907,9 +980,9 @@ export default function App() {
 
                     <div className="meta-input-group">
                       <label>Target Branch</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
+                      <input
+                        type="text"
+                        className="meta-field"
                         value={deploySettings.branch}
                         onChange={(e) => setDeploySettings({ ...deploySettings, branch: e.target.value })}
                       />
@@ -917,24 +990,24 @@ export default function App() {
 
                     <div className="meta-input-group">
                       <label>Commit Message</label>
-                      <input 
-                        type="text" 
-                        className="meta-field" 
+                      <input
+                        type="text"
+                        className="meta-field"
                         value={deploySettings.commitMessage}
                         onChange={(e) => setDeploySettings({ ...deploySettings, commitMessage: e.target.value })}
                       />
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px' }}>
-                      <button 
-                        className="quick-action-btn" 
+                      <button
+                        className="quick-action-btn"
                         onClick={handleCompile}
                         disabled={isCompiling}
                       >
                         {isCompiling ? '🔧 Compiling HTML...' : '☄️ Run Static SSG Compile'}
                       </button>
-                      <button 
-                        className="solid-btn" 
+                      <button
+                        className="solid-btn"
                         style={{ background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-pink) 100%)' }}
                         onClick={handleDeploy}
                         disabled={isDeploying || isCompiling}
@@ -964,7 +1037,7 @@ export default function App() {
             )}
           </>
         ) : (
-          
+
           /* Full Screen Markdown Editor Panel */
           <div>
             <div className="panel-header" style={{ marginBottom: '20px' }}>
@@ -973,9 +1046,9 @@ export default function App() {
                 <p>Support standard Markdown syntax, custom tags, categories, and cover picture drops.</p>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button 
-                  className="text-btn" 
-                  style={{ border: '1px solid rgba(255,255,255,0.08)' }} 
+                <button
+                  className="text-btn"
+                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}
                   onClick={() => setIsEditingPost(false)}
                 >
                   Cancel
@@ -990,15 +1063,15 @@ export default function App() {
             <div className="meta-panel-grid">
               <div className="meta-input-group">
                 <label>Article Title</label>
-                <input 
-                  type="text" 
-                  className="meta-field" 
+                <input
+                  type="text"
+                  className="meta-field"
                   value={editingPost.title}
                   onChange={(e) => {
                     const title = e.target.value;
-                    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                    const slug = sanitizeSlugInput(title);
                     setEditingPost(prev => ({
-                      ...prev, 
+                      ...prev,
                       title,
                       slug: prev.isNew ? slug : prev.slug // auto-slug on creation
                     }));
@@ -1009,11 +1082,11 @@ export default function App() {
               </div>
               <div className="meta-input-group">
                 <label>URL Slug Path</label>
-                <input 
-                  type="text" 
-                  className="meta-field" 
+                <input
+                  type="text"
+                  className="meta-field"
                   value={editingPost.slug}
-                  onChange={(e) => setEditingPost({ ...editingPost, slug: e.target.value })}
+                  onChange={(e) => setEditingPost({ ...editingPost, slug: sanitizeSlugInput(e.target.value) })}
                   placeholder="hello-world"
                   disabled={!editingPost.isNew} // Lock slug on edit to prevent routing breaks
                   required
@@ -1021,7 +1094,7 @@ export default function App() {
               </div>
               <div className="meta-input-group">
                 <label>Category</label>
-                <select 
+                <select
                   className="meta-field"
                   value={editingPost.category}
                   onChange={(e) => setEditingPost({ ...editingPost, category: e.target.value })}
@@ -1034,9 +1107,9 @@ export default function App() {
               </div>
               <div className="meta-input-group">
                 <label>Tags (Comma separated)</label>
-                <input 
-                  type="text" 
-                  className="meta-field" 
+                <input
+                  type="text"
+                  className="meta-field"
                   value={editingPost.tags}
                   onChange={(e) => setEditingPost({ ...editingPost, tags: e.target.value })}
                   placeholder="Static, Web, CSS"
@@ -1044,9 +1117,9 @@ export default function App() {
               </div>
               <div className="meta-input-group">
                 <label>Publication Date</label>
-                <input 
-                  type="date" 
-                  className="meta-field" 
+                <input
+                  type="date"
+                  className="meta-field"
                   value={editingPost.date}
                   onChange={(e) => setEditingPost({ ...editingPost, date: e.target.value })}
                 />
@@ -1058,27 +1131,27 @@ export default function App() {
                 <label>Cover Photo URL or Drop Upload</label>
                 <div className="avatar-preview-container">
                   {editingPost.coverImage && <img src={editingPost.coverImage} className="avatar-preview" style={{ borderRadius: '8px' }} />}
-                  <input 
-                    type="text" 
-                    className="meta-field" 
+                  <input
+                    type="text"
+                    className="meta-field"
                     style={{ flexGrow: 1 }}
-                    value={editingPost.coverImage} 
+                    value={editingPost.coverImage}
                     onChange={(e) => setEditingPost({ ...editingPost, coverImage: e.target.value })}
                     placeholder="https://images.unsplash.com/..."
                   />
-                  <input 
-                    type="file" 
+                  <input
+                    type="file"
                     accept="image/*"
                     style={{ fontSize: '0.75rem', width: '180px', color: 'var(--text-secondary)' }}
-                    onChange={(e) => handleImageUpload(e.target.files[0], 'post')} 
+                    onChange={(e) => handleImageUpload(e.target.files[0], 'post')}
                   />
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <label className="checkbox-label">
-                  <input 
-                    type="checkbox" 
-                    checked={editingPost.draft} 
+                  <input
+                    type="checkbox"
+                    checked={editingPost.draft}
                     onChange={(e) => setEditingPost({ ...editingPost, draft: e.target.checked })}
                   />
                   <span>Save as Draft (Excludes from static compile builds)</span>
@@ -1088,7 +1161,7 @@ export default function App() {
 
             {/* Split Screen Panel */}
             <div className="editor-container" style={{ marginTop: '20px' }}>
-              
+
               {/* Left pane: Markdown typing */}
               <div className="editor-left">
                 <div className="editor-card">
@@ -1100,18 +1173,18 @@ export default function App() {
                       <button className="toolbar-btn" onClick={() => insertMarkdown('link')} title="Insert Link">🔗</button>
                       <button className="toolbar-btn" onClick={() => insertMarkdown('code')} title="Code Block"><code>&lt;/&gt;</code></button>
                       <button className="toolbar-btn" onClick={() => insertMarkdown('quote')} title="Quote">❝</button>
-                      <button 
-                        className="toolbar-btn" 
+                      <button
+                        className="toolbar-btn"
                         title="Upload & Insert Inline Image"
                         onClick={() => document.getElementById('inline-image-uploader').click()}
                       >
                         📷
                       </button>
-                      <input 
-                        type="file" 
-                        id="inline-image-uploader" 
-                        accept="image/*" 
-                        style={{ display: 'none' }} 
+                      <input
+                        type="file"
+                        id="inline-image-uploader"
+                        accept="image/*"
+                        style={{ display: 'none' }}
                         onChange={(e) => {
                           if (e.target.files && e.target.files[0]) {
                             handleImageUpload(e.target.files[0], 'inline');
@@ -1121,7 +1194,7 @@ export default function App() {
                       />
                     </div>
                   </div>
-                  <textarea 
+                  <textarea
                     id="editor-textarea"
                     className="editor-textarea"
                     value={editingPost.content}
@@ -1137,9 +1210,9 @@ export default function App() {
                   <div className="editor-card-header">
                     <span>⚡ LIVE PREVIEW (COMPILED HTML)</span>
                   </div>
-                  <div 
+                  <div
                     className="preview-body markdown-body"
-                    dangerouslySetInnerHTML={{ __html: marked.parse(editingPost.content || '*Empty post draft...*') }}
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
                   />
                 </div>
               </div>

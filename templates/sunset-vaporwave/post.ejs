@@ -33,11 +33,11 @@
 
       <article class="full-post vapor-panel">
         <div class="post-meta">
-          <span class="post-category"><%= post.category.toUpperCase() %></span>
+          <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
           <span class="meta-divider">//</span>
           <span class="post-date"><%= post.date %></span>
         </div>
-        
+
         <h1 class="post-title">> <%= post.title %></h1>
         <p class="post-description">// <%= post.description %></p>
 
@@ -57,7 +57,7 @@
       <% widgets.filter(w => w.enabled && w.position === 'sidebar').forEach(widget => { %>
         <div class="widget widget-<%= widget.type %> vapor-panel" id="widget-<%= widget.id %>">
           <h3 class="widget-title"><%= widget.name %></h3>
-          
+
           <% if (widget.type === 'bio') { %>
             <div class="bio-content">
               <% if (authorAvatar) { %>
@@ -83,6 +83,22 @@
                 </li>
               <% }) %>
             </ul>
+          <% } else if (widget.type === 'tag-cloud') { %>
+            <div class="tag-cloud">
+              <%
+                const tags = {};
+                posts.forEach(p => {
+                  if (p.tags) p.tags.forEach(t => { tags[t] = (tags[t] || 0) + 1 })
+                });
+              %>
+              <% Object.keys(tags).forEach(tag => { %>
+                <span class="tag-chip"><%= String(tag || '').toUpperCase() %> [<%= tags[tag] %>]</span>
+              <% }) %>
+            </div>
+          <% } else if (widget.type === 'custom-html') { %>
+            <div class="custom-html-content">
+              <%- widget.htmlContent || '' %>
+            </div>
           <% } %>
         </div>
       <% }) %>
@@ -98,17 +114,28 @@
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
                 <p>Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.</p>
-                <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('TRANSMISSION ALIGNED FOR: ' + email); this.reset();">
-                  <input type="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
-                  <button type="submit">TRANSMIT</button>
-                </form>
+                <% if (widget.actionUrl) { %>
+                  <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
+                    <button type="submit">TRANSMIT</button>
+                  </form>
+                <% } else { %>
+                  <form class="newsletter-form">
+                    <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT.EXE' %>" disabled aria-label="Neon Email Terminal">
+                    <button type="button" disabled>CONFIG</button>
+                  </form>
+                <% } %>
+              </div>
+            <% } else if (widget.type === 'custom-html') { %>
+              <div class="custom-html-content">
+                <%- widget.htmlContent || '' %>
               </div>
             <% } %>
           </div>
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= siteName.toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
         <p class="credit">SYSTEM_ENGINE: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
       </div>
     </div>

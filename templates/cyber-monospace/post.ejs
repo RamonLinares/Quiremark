@@ -46,7 +46,7 @@
             <span class="meta-divider">::</span>
             <span class="post-date"><%= post.date %></span>
           </div>
-          
+
           <h1 class="post-title">> <%= post.title %></h1>
           <p class="post-description">// <%= post.description %></p>
 
@@ -71,7 +71,7 @@
           </div>
           <div class="terminal-body">
             <h3 class="widget-title">>_ <%= widget.name %></h3>
-            
+
             <% if (widget.type === 'bio') { %>
               <div class="bio-content">
                 <% if (authorAvatar) { %>
@@ -95,6 +95,22 @@
                   </li>
                 <% }) %>
               </ul>
+            <% } else if (widget.type === 'tag-cloud') { %>
+              <div class="tag-cloud">
+                <%
+                  const tags = {};
+                  posts.forEach(p => {
+                    if (p.tags) p.tags.forEach(t => { tags[t] = (tags[t] || 0) + 1 })
+                  });
+                %>
+                <% Object.keys(tags).forEach(tag => { %>
+                  <span class="tag-chip">#<%= tag %>:<%= tags[tag] %></span>
+                <% }) %>
+              </div>
+            <% } else if (widget.type === 'custom-html') { %>
+              <div class="custom-html">
+                <%- widget.htmlContent || '' %>
+              </div>
             <% } %>
           </div>
         </div>
@@ -115,17 +131,28 @@
               <% if (widget.type === 'newsletter') { %>
                 <div class="newsletter-content">
                   <p>CONNECT TO SECTOR NEWSLETTER STREAM.</p>
-                  <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('CONNECTION CONFIRMED: ' + email); this.reset();">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
-                    <button type="submit">[ INJECT ]</button>
-                  </form>
+                  <% if (widget.actionUrl) { %>
+                    <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
+                      <input type="email" name="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
+                      <button type="submit">[ INJECT ]</button>
+                    </form>
+                  <% } else { %>
+                    <form class="newsletter-form">
+                      <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT' %>" disabled aria-label="Terminal Email Address">
+                      <button type="button" disabled>[ CONFIG ]</button>
+                    </form>
+                  <% } %>
+                </div>
+              <% } else if (widget.type === 'custom-html') { %>
+                <div class="custom-html">
+                  <%- widget.htmlContent || '' %>
                 </div>
               <% } %>
             </div>
           <% }) %>
         </div>
         <div class="footer-bottom">
-          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= siteName.toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
+          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
           <p class="credit">COMPILED_BY: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
         </div>
       </div>

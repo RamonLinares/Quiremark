@@ -27,13 +27,19 @@
 
   <div class="main-layout animate-fade-in">
     <main class="posts-feed">
+      <section class="search-panel" data-search-panel>
+        <label class="search-label" for="site-search">Search Archive</label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+        <div class="search-results" data-search-results aria-live="polite"></div>
+      </section>
+
       <% if (posts.length === 0) { %>
         <div class="empty-state vapor-panel">
           <p>NO STATIC DATA SECTORS DETECTED.</p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
-          <article class="post-card vapor-panel">
+          <article class="post-card vapor-panel" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
             <% if (post.coverImage) { %>
               <div class="post-image-container">
                 <a href="/posts/<%= post.slug %>/index.html">
@@ -43,7 +49,7 @@
             <% } %>
             <div class="post-card-content">
               <div class="post-meta">
-                <span class="post-category"><%= post.category.toUpperCase() %></span>
+                <span class="post-category"><%= String(post.category || 'Uncategorized').toUpperCase() %></span>
                 <span class="meta-divider">//</span>
                 <span class="post-date"><%= post.date %></span>
               </div>
@@ -97,7 +103,7 @@
                 });
               %>
               <% Object.keys(tags).forEach(tag => { %>
-                <span class="tag-chip"><%= tag.toUpperCase() %> [<%= tags[tag] %>]</span>
+                <span class="tag-chip"><%= String(tag || '').toUpperCase() %> [<%= tags[tag] %>]</span>
               <% }) %>
             </div>
           <% } else if (widget.type === 'custom-html') { %>
@@ -119,20 +125,28 @@
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
                 <p>Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.</p>
-                <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('TRANSMISSION ALIGNED FOR: ' + email); this.reset();">
-                  <input type="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
-                  <button type="submit">TRANSMIT</button>
-                </form>
+                <% if (widget.actionUrl) { %>
+                  <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'SYSTEM@DOMAIN.EXE' %>" required aria-label="Neon Email Terminal">
+                    <button type="submit">TRANSMIT</button>
+                  </form>
+                <% } else { %>
+                  <form class="newsletter-form">
+                    <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT.EXE' %>" disabled aria-label="Neon Email Terminal">
+                    <button type="button" disabled>CONFIG</button>
+                  </form>
+                <% } %>
               </div>
             <% } %>
           </div>
         <% }) %>
       </div>
       <div class="footer-bottom">
-        <p>&copy; <%= new Date().getFullYear() %> <%= siteName.toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
+        <p>&copy; <%= new Date().getFullYear() %> <%= String(siteName || '').toUpperCase() %>. ALL PROTOCOLS SECURED.</p>
         <p class="credit">SYSTEM_ENGINE: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
       </div>
     </div>
   </footer>
+  <script src="/search.js" defer></script>
 </body>
 </html>

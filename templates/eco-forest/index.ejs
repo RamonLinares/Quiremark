@@ -23,13 +23,19 @@
 
   <div class="main-layout animate-fade-up">
     <main class="posts-feed">
+      <section class="search-panel" data-search-panel>
+        <label class="search-label" for="site-search">Search Archive</label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+        <div class="search-results" data-search-results aria-live="polite"></div>
+      </section>
+
       <% if (posts.length === 0) { %>
         <div class="empty-state eco-panel">
           <p>No publications found in the forest archives.</p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
-          <article class="post-card eco-panel">
+          <article class="post-card eco-panel" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
             <% if (post.coverImage) { %>
               <div class="post-image-container">
                 <a href="/posts/<%= post.slug %>/index.html">
@@ -117,10 +123,17 @@
             <% if (widget.type === 'newsletter') { %>
               <div class="newsletter-content">
                 <p>Join the clearing. Receive our monthly letter on art, design, and mindful living.</p>
-                <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('THANK YOU FOR JOINING: ' + email); this.reset();">
-                  <input type="email" placeholder="<%= widget.placeholderText || 'your.email@nature.com' %>" required aria-label="E-mail for newsletter">
-                  <button type="submit">JOIN LETTERS</button>
-                </form>
+                <% if (widget.actionUrl) { %>
+                  <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
+                    <input type="email" name="email" placeholder="<%= widget.placeholderText || 'your.email@nature.com' %>" required aria-label="E-mail for newsletter">
+                    <button type="submit">JOIN LETTERS</button>
+                  </form>
+                <% } else { %>
+                  <form class="newsletter-form">
+                    <input type="email" placeholder="<%= widget.placeholderText || 'Configure newsletter endpoint' %>" disabled aria-label="E-mail for newsletter">
+                    <button type="button" disabled>Configure</button>
+                  </form>
+                <% } %>
               </div>
             <% } else if (widget.type === 'custom-html') { %>
               <div class="custom-html-content">
@@ -136,5 +149,6 @@
       </div>
     </div>
   </footer>
+  <script src="/search.js" defer></script>
 </body>
 </html>

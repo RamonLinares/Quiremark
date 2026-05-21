@@ -5,8 +5,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fm from 'front-matter';
 import { marked } from 'marked';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
+import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
+import createDOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
 
 // Load environmental variables
 dotenv.config();
@@ -17,9 +20,25 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+const SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 * 60 * 1000);
+const sessionStore = new Map();
+const { window } = new JSDOM('');
+const DOMPurify = createDOMPurify(window);
+
+const SAFE_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SAFE_BRANCH_RE = /^(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!\/)(?!.*\/$)[A-Za-z0-9._/-]{1,128}$/;
+const SAFE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
 
 // Middleware configurations
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
+  }
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -29,6 +48,7 @@ const POSTS_DIR = path.join(CONTENT_DIR, 'posts');
 const IMAGES_DIR = path.join(CONTENT_DIR, 'images');
 const TEMPLATES_DIR = path.join(__dirname, 'templates');
 const OUT_DIR = path.join(__dirname, 'out');
+const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
 
 // Ensure necessary directories exist on startup
 [CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR].forEach(dir => {
@@ -63,7 +83,21 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     authorAvatar: "",
     socialLinks: { github: "", twitter: "", linkedin: "", instagram: "" },
     selectedTemplate: "nordic-minimal",
-    widgets: []
+    widgets: [
+      { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
+      { id: "recent-posts", name: "Recent Posts", type: "recent-posts", enabled: true, position: "sidebar", order: 2 },
+      { id: "tag-cloud", name: "Topics", type: "tag-cloud", enabled: true, position: "sidebar", order: 3 },
+      {
+        id: "newsletter",
+        name: "Newsletter",
+        type: "newsletter",
+        enabled: true,
+        position: "footer",
+        order: 4,
+        placeholderText: "Enter your email...",
+        actionUrl: ""
+      }
+    ]
   };
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf-8');
 }
@@ -75,8 +109,176 @@ if (!fs.existsSync(SETTINGS_FILE)) {
 // Calculate reading time
 function calculateReadingTime(text) {
   const wordsPerMinute = 200;
-  const numberOfWords = text.split(/\s+/).length;
+  const numberOfWords = String(text || '').trim().split(/\s+/).filter(Boolean).length;
   return Math.ceil(numberOfWords / wordsPerMinute);
+}
+
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    ADD_ATTR: ['target', 'rel']
+  });
+}
+
+function renderMarkdown(markdown) {
+  return sanitizeHtml(marked.parse(String(markdown || '')));
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+}
+
+function isValidSlug(slug) {
+  return SAFE_SLUG_RE.test(String(slug || ''));
+}
+
+function assertValidSlug(slug) {
+  if (!isValidSlug(slug)) {
+    const err = new Error('Slug must use lowercase letters, numbers, and single hyphens only.');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+function resolveInside(baseDir, ...segments) {
+  const basePath = path.resolve(baseDir);
+  const targetPath = path.resolve(basePath, ...segments);
+  if (targetPath !== basePath && !targetPath.startsWith(`${basePath}${path.sep}`)) {
+    const err = new Error('Resolved path escaped the allowed directory.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return targetPath;
+}
+
+function postFilePath(slug) {
+  assertValidSlug(slug);
+  return resolveInside(POSTS_DIR, `${slug}.md`);
+}
+
+function postOutputDir(slug) {
+  assertValidSlug(slug);
+  return resolveInside(path.join(OUT_DIR, 'posts'), slug);
+}
+
+function normalizeTags(tags) {
+  if (Array.isArray(tags)) {
+    return tags.map(tag => String(tag).trim()).filter(Boolean);
+  }
+  if (typeof tags === 'string') {
+    return tags.split(',').map(tag => tag.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeActionUrl(actionUrl) {
+  const value = String(actionUrl || '').trim();
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeWidget(widget = {}) {
+  return {
+    ...widget,
+    id: String(widget.id || `${widget.type || 'widget'}-${Date.now()}`),
+    name: String(widget.name || widget.type || 'Widget'),
+    type: String(widget.type || 'custom-html'),
+    enabled: widget.enabled !== false,
+    position: widget.position === 'footer' ? 'footer' : 'sidebar',
+    order: Number.isFinite(Number(widget.order)) ? Number(widget.order) : 99,
+    placeholderText: widget.placeholderText || '',
+    actionUrl: normalizeActionUrl(widget.actionUrl),
+    htmlContent: widget.htmlContent || ''
+  };
+}
+
+function normalizeSettings(settings = {}) {
+  return {
+    siteName: String(settings.siteName || 'Zenith Press'),
+    siteSubtitle: String(settings.siteSubtitle || ''),
+    authorName: String(settings.authorName || ''),
+    authorBio: String(settings.authorBio || ''),
+    authorAvatar: String(settings.authorAvatar || ''),
+    socialLinks: {
+      github: settings.socialLinks?.github || '',
+      twitter: settings.socialLinks?.twitter || '',
+      linkedin: settings.socialLinks?.linkedin || '',
+      instagram: settings.socialLinks?.instagram || ''
+    },
+    selectedTemplate: String(settings.selectedTemplate || 'nordic-minimal'),
+    widgets: Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : []
+  };
+}
+
+function readSettings() {
+  return normalizeSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')));
+}
+
+function normalizePost(attributes = {}, body = '', fileName = '') {
+  const fileSlug = slugify(path.basename(fileName, path.extname(fileName)));
+  const title = String(attributes.title || 'Untitled Post');
+  const slug = slugify(attributes.slug || fileSlug || title);
+  return {
+    title,
+    slug: isValidSlug(slug) ? slug : fileSlug || slugify(title) || 'untitled-post',
+    description: String(attributes.description || ''),
+    date: String(attributes.date || new Date().toISOString().split('T')[0]),
+    category: String(attributes.category || 'Uncategorized'),
+    tags: normalizeTags(attributes.tags),
+    coverImage: String(attributes.coverImage || ''),
+    draft: attributes.draft === true,
+    content: String(body || ''),
+    readingTime: calculateReadingTime(body),
+    fileName
+  };
+}
+
+function normalizePostPayload(body = {}) {
+  const title = String(body.title || '').trim();
+  const slug = String(body.slug || '').trim();
+  if (!title || !slug) {
+    const err = new Error('Title and Slug are required.');
+    err.statusCode = 400;
+    throw err;
+  }
+  assertValidSlug(slug);
+  return {
+    title,
+    slug,
+    description: String(body.description || ''),
+    date: String(body.date || new Date().toISOString().split('T')[0]),
+    category: String(body.category || 'Uncategorized'),
+    tags: normalizeTags(body.tags),
+    coverImage: String(body.coverImage || ''),
+    content: String(body.content || ''),
+    draft: body.draft === true
+  };
+}
+
+function serializePostMarkdown(post) {
+  return [
+    '---',
+    `title: ${JSON.stringify(post.title)}`,
+    `slug: ${JSON.stringify(post.slug)}`,
+    `description: ${JSON.stringify(post.description)}`,
+    `date: ${JSON.stringify(post.date)}`,
+    `category: ${JSON.stringify(post.category)}`,
+    `tags: ${JSON.stringify(post.tags)}`,
+    `coverImage: ${JSON.stringify(post.coverImage)}`,
+    `draft: ${post.draft === true}`,
+    '---',
+    '',
+    post.content
+  ].join('\n');
 }
 
 // Read and parse all posts
@@ -90,12 +292,7 @@ function getAllPosts(includeDrafts = true) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const parsed = fm(content);
       
-      return {
-        ...parsed.attributes,
-        content: parsed.body,
-        readingTime: calculateReadingTime(parsed.body),
-        fileName: file
-      };
+      return normalizePost(parsed.attributes, parsed.body, file);
     });
 
   // Sort by date descending
@@ -104,17 +301,81 @@ function getAllPosts(includeDrafts = true) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
-// Helper to run commands
-function runCommand(command, cwd = __dirname) {
+function runCommand(command, args = [], cwd = __dirname) {
   return new Promise((resolve, reject) => {
-    exec(command, { cwd }, (error, stdout, stderr) => {
+    execFile(command, args, { cwd }, (error, stdout, stderr) => {
       if (error) {
-        reject({ error, stderr });
+        reject(new Error(stderr || error.message));
       } else {
         resolve(stdout);
       }
     });
   });
+}
+
+function cleanupExpiredSessions() {
+  const now = Date.now();
+  for (const [token, session] of sessionStore.entries()) {
+    if (session.expiresAt <= now) {
+      sessionStore.delete(token);
+    }
+  }
+}
+
+function createSessionToken() {
+  cleanupExpiredSessions();
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  sessionStore.set(token, { expiresAt });
+  return { token, expiresAt };
+}
+
+function requireAuth(req, res, next) {
+  if (req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+  const auth = req.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const session = sessionStore.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) sessionStore.delete(token);
+    res.status(401).json({ error: 'Authentication required.' });
+    return;
+  }
+  next();
+}
+
+function validateRemoteUrl(remoteUrl) {
+  const value = String(remoteUrl || '').trim();
+  const githubSsh = /^git@github\.com:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/;
+  const githubHttps = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/;
+  if (!githubSsh.test(value) && !githubHttps.test(value)) {
+    const err = new Error('Remote URL must be a GitHub SSH or HTTPS repository URL.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return value;
+}
+
+function validateBranch(branch) {
+  const value = String(branch || 'gh-pages').trim();
+  if (!SAFE_BRANCH_RE.test(value) || value.endsWith('.lock')) {
+    const err = new Error('Branch name contains unsupported characters.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return value;
+}
+
+function validateCommitMessage(message) {
+  const value = String(message || 'Publish: Static Pages Deploy').trim();
+  if (!value || value.length > 160 || /[\r\n\0]/.test(value)) {
+    const err = new Error('Commit message must be 1-160 characters without control characters.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return value;
 }
 
 // ----------------------------------------------------
@@ -125,17 +386,19 @@ function runCommand(command, cwd = __dirname) {
 app.post('/api/auth/login', (req, res) => {
   const { password } = req.body;
   if (password === ADMIN_PASSWORD) {
-    res.json({ success: true, token: 'session_token_zenith_2026' });
+    const { token, expiresAt } = createSessionToken();
+    res.json({ success: true, token, expiresAt });
   } else {
     res.status(401).json({ success: false, message: 'Invalid administrative credential password.' });
   }
 });
 
+app.use('/api', requireAuth);
+
 // Fetch settings
 app.get('/api/settings', (req, res) => {
   try {
-    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
-    res.json(settings);
+    res.json(readSettings());
   } catch (err) {
     res.status(500).json({ error: 'Failed to read settings configuration.' });
   }
@@ -144,7 +407,7 @@ app.get('/api/settings', (req, res) => {
 // Update settings
 app.post('/api/settings', (req, res) => {
   try {
-    const settings = req.body;
+    const settings = normalizeSettings(req.body);
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
     res.json({ success: true, message: 'Settings saved successfully.' });
   } catch (err) {
@@ -166,54 +429,35 @@ app.get('/api/posts', (req, res) => {
 app.get('/api/posts/:slug', (req, res) => {
   try {
     const { slug } = req.params;
-    const filePath = path.join(POSTS_DIR, `${slug}.md`);
+    const filePath = postFilePath(slug);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Post not found.' });
     }
     const content = fs.readFileSync(filePath, 'utf-8');
     const parsed = fm(content);
+    const post = normalizePost(parsed.attributes, parsed.body, `${slug}.md`);
     res.json({
-      meta: parsed.attributes,
-      content: parsed.body
+      meta: { ...post, content: undefined },
+      content: post.content
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch post.' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to fetch post.' });
   }
 });
 
 // Create new post
 app.post('/api/posts', (req, res) => {
   try {
-    const { title, slug, description, date, category, tags, coverImage, content, draft } = req.body;
-    
-    if (!title || !slug) {
-      return res.status(400).json({ error: 'Title and Slug are required.' });
-    }
-
-    const filePath = path.join(POSTS_DIR, `${slug}.md`);
+    const post = normalizePostPayload(req.body);
+    const filePath = postFilePath(post.slug);
     if (fs.existsSync(filePath)) {
       return res.status(400).json({ error: 'A post with this slug already exists.' });
     }
 
-    const yamlMeta = [
-      '---',
-      `title: ${JSON.stringify(title)}`,
-      `slug: ${JSON.stringify(slug)}`,
-      `description: ${JSON.stringify(description || '')}`,
-      `date: ${JSON.stringify(date || new Date().toISOString().split('T')[0])}`,
-      `category: ${JSON.stringify(category || 'Uncategorized')}`,
-      `tags: ${JSON.stringify(tags || [])}`,
-      `coverImage: ${JSON.stringify(coverImage || '')}`,
-      `draft: ${draft === true}`,
-      '---',
-      '',
-      content || ''
-    ].join('\n');
-
-    fs.writeFileSync(filePath, yamlMeta, 'utf-8');
+    fs.writeFileSync(filePath, serializePostMarkdown(post), 'utf-8');
     res.json({ success: true, message: 'Post created successfully.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create post.' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to create post.' });
   }
 });
 
@@ -221,48 +465,29 @@ app.post('/api/posts', (req, res) => {
 app.put('/api/posts/:slug', (req, res) => {
   try {
     const oldSlug = req.params.slug;
-    const { title, slug: newSlug, description, date, category, tags, coverImage, content, draft } = req.body;
-
-    if (!title || !newSlug) {
-      return res.status(400).json({ error: 'Title and Slug are required.' });
-    }
-
-    const oldFilePath = path.join(POSTS_DIR, `${oldSlug}.md`);
-    const newFilePath = path.join(POSTS_DIR, `${newSlug}.md`);
+    assertValidSlug(oldSlug);
+    const post = normalizePostPayload(req.body);
+    const oldFilePath = postFilePath(oldSlug);
+    const newFilePath = postFilePath(post.slug);
 
     if (!fs.existsSync(oldFilePath)) {
       return res.status(404).json({ error: 'Original post not found.' });
     }
 
     // Handle slug change
-    if (oldSlug !== newSlug && fs.existsSync(newFilePath)) {
+    if (oldSlug !== post.slug && fs.existsSync(newFilePath)) {
       return res.status(400).json({ error: 'A post with the new slug already exists.' });
     }
 
-    const yamlMeta = [
-      '---',
-      `title: ${JSON.stringify(title)}`,
-      `slug: ${JSON.stringify(newSlug)}`,
-      `description: ${JSON.stringify(description || '')}`,
-      `date: ${JSON.stringify(date || new Date().toISOString().split('T')[0])}`,
-      `category: ${JSON.stringify(category || 'Uncategorized')}`,
-      `tags: ${JSON.stringify(tags || [])}`,
-      `coverImage: ${JSON.stringify(coverImage || '')}`,
-      `draft: ${draft === true}`,
-      '---',
-      '',
-      content || ''
-    ].join('\n');
-
     // If slug changed, delete the old file
-    if (oldSlug !== newSlug) {
+    if (oldSlug !== post.slug) {
       fs.unlinkSync(oldFilePath);
     }
 
-    fs.writeFileSync(newFilePath, yamlMeta, 'utf-8');
+    fs.writeFileSync(newFilePath, serializePostMarkdown(post), 'utf-8');
     res.json({ success: true, message: 'Post updated successfully.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update post.' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to update post.' });
   }
 });
 
@@ -270,14 +495,14 @@ app.put('/api/posts/:slug', (req, res) => {
 app.delete('/api/posts/:slug', (req, res) => {
   try {
     const { slug } = req.params;
-    const filePath = path.join(POSTS_DIR, `${slug}.md`);
+    const filePath = postFilePath(slug);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Post not found.' });
     }
     fs.unlinkSync(filePath);
     res.json({ success: true, message: 'Post deleted successfully.' });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete post.' });
+    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : 'Failed to delete post.' });
   }
 });
 
@@ -289,13 +514,16 @@ app.post('/api/images/upload', (req, res) => {
       return res.status(400).json({ error: 'Missing filename or image data.' });
     }
 
-    const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const cleanBase64 = String(base64Data).replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
     
     // Save locally
-    const ext = path.extname(filename) || '.jpg';
+    const ext = path.extname(filename).toLowerCase() || '.jpg';
+    if (!SAFE_IMAGE_EXTENSIONS.has(ext)) {
+      return res.status(400).json({ error: 'Unsupported image file type.' });
+    }
     const uniqueName = `image_${Date.now()}${ext}`;
-    const targetPath = path.join(IMAGES_DIR, uniqueName);
+    const targetPath = resolveInside(IMAGES_DIR, uniqueName);
     
     fs.writeFileSync(targetPath, buffer);
     
@@ -320,9 +548,9 @@ app.post('/api/publish', async (req, res) => {
     logMsg("Starting static compilation pipeline...");
 
     // 1. Read settings and verified templates
-    const settings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    const settings = readSettings();
     const templateName = settings.selectedTemplate || 'nordic-minimal';
-    const activeTemplateDir = path.join(TEMPLATES_DIR, templateName);
+    const activeTemplateDir = resolveInside(TEMPLATES_DIR, templateName);
     
     logMsg(`Selected template structure: "${templateName}"`);
 
@@ -352,7 +580,7 @@ app.post('/api/publish', async (req, res) => {
     // 4. Render markdown content for each post
     const compiledPosts = posts.map(post => ({
       ...post,
-      content: marked.parse(post.content)
+      content: renderMarkdown(post.content)
     }));
 
     // 5. Load EJS layouts
@@ -377,6 +605,7 @@ app.post('/api/publish', async (req, res) => {
       authorAvatar: settings.authorAvatar,
       socialLinks: settings.socialLinks,
       widgets: settings.widgets,
+      helpers: { upper: value => String(value || '').toUpperCase() },
       posts: compiledPosts
     };
 
@@ -394,7 +623,7 @@ app.post('/api/publish', async (req, res) => {
 
     for (const post of compiledPosts) {
       logMsg(`Compiling article page: "/posts/${post.slug}"...`);
-      const singlePostDir = path.join(postsOutDir, post.slug);
+      const singlePostDir = postOutputDir(post.slug);
       if (!fs.existsSync(singlePostDir)) {
         fs.mkdirSync(singlePostDir, { recursive: true });
       }
@@ -407,6 +636,7 @@ app.post('/api/publish', async (req, res) => {
         authorAvatar: settings.authorAvatar,
         socialLinks: settings.socialLinks,
         widgets: settings.widgets,
+        helpers: { upper: value => String(value || '').toUpperCase() },
         posts: compiledPosts,
         post: post
       };
@@ -427,6 +657,11 @@ app.post('/api/publish', async (req, res) => {
     if (fs.existsSync(scriptSrc)) {
       fs.copyFileSync(scriptSrc, path.join(OUT_DIR, 'script.js'));
       logMsg("Copied template script asset (script.js).");
+    }
+
+    if (fs.existsSync(COMMON_SEARCH_SCRIPT)) {
+      fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(OUT_DIR, 'search.js'));
+      logMsg("Copied shared search script (search.js).");
     }
 
     // 9. Copy uploaded images
@@ -469,12 +704,11 @@ app.post('/api/deploy', async (req, res) => {
   const log = [];
   const logMsg = (msg) => { log.push(`[DEPLOY] ${msg}`); console.log(`[DEPLOY] ${msg}`); };
 
-  if (!remoteUrl) {
-    return res.status(400).json({ error: 'Repository remote URL is required to trigger deployment.' });
-  }
-
   try {
-    logMsg(`Starting Git Deployment pipeline for branch "${branch}"...`);
+    const safeRemoteUrl = validateRemoteUrl(remoteUrl);
+    const safeBranch = validateBranch(branch);
+    const safeCommitMessage = validateCommitMessage(commitMessage);
+    logMsg(`Starting Git Deployment pipeline for branch "${safeBranch}"...`);
 
     // Ensure out directory exists
     if (!fs.existsSync(OUT_DIR) || fs.readdirSync(OUT_DIR).length <= 1) {
@@ -485,59 +719,59 @@ app.post('/api/deploy', async (req, res) => {
     const isGitRepo = fs.existsSync(path.join(OUT_DIR, '.git'));
     if (!isGitRepo) {
       logMsg("Initializing new local Git workspace inside /out...");
-      await runCommand('git init', OUT_DIR);
-      await runCommand(`git remote add origin ${remoteUrl}`, OUT_DIR);
+      await runCommand('git', ['init'], OUT_DIR);
+      await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], OUT_DIR);
       logMsg("Workspace successfully initialized with remote target.");
     } else {
       // Update remote just in case it changed
       try {
-        await runCommand(`git remote set-url origin ${remoteUrl}`, OUT_DIR);
+        await runCommand('git', ['remote', 'set-url', 'origin', safeRemoteUrl], OUT_DIR);
       } catch (err) {
         // If set-url fails because origin doesn't exist
-        await runCommand(`git remote add origin ${remoteUrl}`, OUT_DIR);
+        await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], OUT_DIR);
       }
     }
 
     // Configure credentials locally inside the subfolder so we don't interfere with global configs
     logMsg("Configuring local directory git targets...");
-    await runCommand('git config user.name "ZenithPress Compiler"', OUT_DIR);
-    await runCommand('git config user.email "compiler@zenithpress.local"', OUT_DIR);
+    await runCommand('git', ['config', 'user.name', 'ZenithPress Compiler'], OUT_DIR);
+    await runCommand('git', ['config', 'user.email', 'compiler@zenithpress.local'], OUT_DIR);
 
     // Checkout deployment branch
     try {
-      logMsg(`Checking out branch: "${branch}"...`);
-      await runCommand(`git checkout -B ${branch}`, OUT_DIR);
+      logMsg(`Checking out branch: "${safeBranch}"...`);
+      await runCommand('git', ['checkout', '-B', safeBranch], OUT_DIR);
     } catch (err) {
       // If branch checkout fails, create it
-      await runCommand(`git checkout -b ${branch}`, OUT_DIR);
+      await runCommand('git', ['checkout', '-b', safeBranch], OUT_DIR);
     }
 
     // Add and commit files
     logMsg("Staging files...");
-    await runCommand('git add .', OUT_DIR);
+    await runCommand('git', ['add', '.'], OUT_DIR);
 
     // Check git status to see if anything changed
-    const status = await runCommand('git status --porcelain', OUT_DIR);
+    const status = await runCommand('git', ['status', '--porcelain'], OUT_DIR);
     if (!status.trim()) {
       logMsg("No changes detected since last publication.");
       return res.json({ success: true, message: "Static pages are already up-to-date.", log });
     }
 
-    logMsg(`Committing updates: "${commitMessage}"...`);
+    logMsg(`Committing updates: "${safeCommitMessage}"...`);
     const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const finalMsg = `${commitMessage} (${dateStr})`;
-    await runCommand(`git commit -m "${finalMsg}"`, OUT_DIR);
+    const finalMsg = `${safeCommitMessage} (${dateStr})`;
+    await runCommand('git', ['commit', '-m', finalMsg], OUT_DIR);
 
     // Push to GitHub
-    logMsg(`Pushing assets to origin/${branch}...`);
+    logMsg(`Pushing assets to origin/${safeBranch}...`);
     // Using --force to guarantee hosting files replace whatever is currently in gh-pages
-    await runCommand(`git push origin ${branch} --force`, OUT_DIR);
+    await runCommand('git', ['push', 'origin', safeBranch, '--force'], OUT_DIR);
 
     logMsg("Pushed to GitHub Pages successfully!");
     res.json({ success: true, log });
   } catch (err) {
     logMsg(`DEPLOYMENT PIPELINE CRASHED: ${err.message || err.stderr || JSON.stringify(err)}`);
-    res.status(500).json({ success: false, error: err.message || err.stderr, log });
+    res.status(err.statusCode || 500).json({ success: false, error: err.message || err.stderr, log });
   }
 });
 

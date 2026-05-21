@@ -31,13 +31,19 @@
 
   <div class="main-layout">
     <main class="posts-feed">
+      <section class="search-panel" data-search-panel>
+        <label class="search-label" for="site-search">Search Archive</label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="Search posts, categories, or tags..." autocomplete="off">
+        <div class="search-results" data-search-results aria-live="polite"></div>
+      </section>
+
       <% if (posts.length === 0) { %>
         <div class="empty-state terminal-panel">
           <p>[ERROR: NO_POSTS_FOUND_IN_SECTOR]</p>
         </div>
       <% } else { %>
         <% posts.forEach(post => { %>
-          <article class="post-card terminal-panel">
+          <article class="post-card terminal-panel" data-search-card data-search-text="<%= [post.title, post.description, post.category, ...((post.tags || []))].join(' ') %>">
             <div class="terminal-header">
               <span class="terminal-file-icon"></span>
               <span class="terminal-title">post://<%= post.slug %>.md</span>
@@ -136,10 +142,17 @@
               <% if (widget.type === 'newsletter') { %>
                 <div class="newsletter-content">
                   <p>CONNECT TO SECTOR NEWSLETTER STREAM.</p>
-                  <form class="newsletter-form" onsubmit="event.preventDefault(); const email = this.querySelector('input').value; alert('CONNECTION CONFIRMED: ' + email); this.reset();">
-                    <input type="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
-                    <button type="submit">[ INJECT ]</button>
-                  </form>
+                  <% if (widget.actionUrl) { %>
+                    <form class="newsletter-form" action="<%= widget.actionUrl %>" method="post">
+                      <input type="email" name="email" placeholder="<%= widget.placeholderText || 'admin@domain.com' %>" required aria-label="Terminal Email Address">
+                      <button type="submit">[ INJECT ]</button>
+                    </form>
+                  <% } else { %>
+                    <form class="newsletter-form">
+                      <input type="email" placeholder="<%= widget.placeholderText || 'CONFIGURE_ENDPOINT' %>" disabled aria-label="Terminal Email Address">
+                      <button type="button" disabled>[ CONFIG ]</button>
+                    </form>
+                  <% } %>
                 </div>
               <% } else if (widget.type === 'custom-html') { %>
                 <div class="custom-html">
@@ -150,11 +163,12 @@
           <% }) %>
         </div>
         <div class="footer-bottom">
-          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= siteName.toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
+          <p>&copy;&nbsp;<%= new Date().getFullYear() %>&nbsp;<%= String(siteName || '').toUpperCase().replace(' ', '_') %>_KERNEL. ALL RIGHTS SECURED.</p>
           <p class="credit">COMPILED_BY: <a href="#" class="footer-link">[ZENITH_PRESS]</a></p>
         </div>
       </div>
     </div>
   </footer>
+  <script src="/search.js" defer></script>
 </body>
 </html>
