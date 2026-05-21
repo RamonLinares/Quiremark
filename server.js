@@ -31,12 +31,17 @@ const SAFE_BRANCH_RE = /^(?!.*\.\.)(?!.*\/\/)(?!.*@\{)(?!\/)(?!.*\/$)[A-Za-z0-9.
 const SAFE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif']);
 const DYNAMIC_VARIABLE_RE = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const DEFAULT_LOCALE = 'en';
+const DEFAULT_PUBLIC_FEATURES = {
+  search: true,
+  newsletter: true,
+  about: true,
+  rss: true
+};
 const SUPPORTED_LOCALES = {
   en: 'English',
   es: 'Español',
-  fr: 'Français',
-  de: 'Deutsch',
-  pt: 'Português'
+  ca: 'Català',
+  zh: '中文'
 };
 const THEME_TEXT_KEYS = [
   'searchLabel',
@@ -69,6 +74,7 @@ const REQUIRED_TEMPLATE_FIELDS = [
   'authorAvatar',
   'socialLinks',
   'locale',
+  'features',
   'themeText',
   'widgets',
   'helpers',
@@ -157,10 +163,165 @@ const TRANSLATIONS = {
     'Recent Musings': 'Reflexiones recientes',
     'Topics': 'Temas',
     'Newsletter': 'Boletín',
+    'RSS Feed': 'Canal RSS',
     'Inner Circle Newsletter': 'Boletín del círculo interno',
     'Custom HTML Block': 'Bloque HTML personalizado',
     'Enter your email...': 'Introduce tu correo...',
     'Enter your email for weekly updates...': 'Introduce tu correo para recibir novedades semanales...'
+  },
+  ca: {
+    'Home': 'Inici',
+    'VOL.': 'VOL.',
+    'NO.': 'NÚM.',
+    'Search Archive': 'Cerca a l’arxiu',
+    'Search posts, categories, or tags...': 'Cerca publicacions, categories o etiquetes...',
+    'No matching posts found.': 'No s’han trobat publicacions coincidents.',
+    'No posts published yet.': 'Encara no hi ha publicacions.',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[ERROR: NO_HI_HA_PUBLICACIONS_AL_SECTOR]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': 'NO HI HA ARTICLES REGISTRATS A L’ARXIU.',
+    'No publications found in the forest archives.': 'No s’han trobat publicacions als arxius del bosc.',
+    'NO STATIC DATA SECTORS DETECTED.': 'NO S’HAN DETECTAT SECTORS DE DADES ESTÀTIQUES.',
+    'Read Entry →': 'Llegeix l’entrada →',
+    'Explore Article →': 'Explora l’article →',
+    '[ EXECUTE_POST_READER ]': '[ EXECUTA_LECTOR ]',
+    'READ FULL STORY →': 'LLEGEIX LA HISTÒRIA COMPLETA →',
+    'CONTINUE READING': 'CONTINUA LLEGINT',
+    'LOAD ARTICLE_': 'CARREGA_ARTICLE_',
+    '← Back to Musings': '← Torna a les reflexions',
+    '← Back to Dashboard': '← Torna al tauler',
+    '[ BACK_TO_DIRECTORY ]': '[ TORNA_AL_DIRECTORI ]',
+    '← BACK TO GAZETTE DIRECTORY': '← TORNA AL DIRECTORI DE LA GASETA',
+    '← BACK TO TREE HIERARCHY': '← TORNA A LA JERARQUIA',
+    'System Status: ONLINE': 'Estat del sistema: EN LÍNIA',
+    'EDITION: DIGITAL AESTHETICS': 'EDICIÓ: ESTÈTICA DIGITAL',
+    'Subscribe for the latest design & dev updates directly to your inbox.': 'Subscriu-te per rebre les últimes novetats de disseny i desenvolupament directament al correu.',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': 'Subscriu-te a lliuraments setmanals de disseny, codi i estètica futurista.',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': 'CONNECTA AL FLUX DEL BUTLLETÍ DEL SECTOR.',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': 'Subscriu-te a les nostres actualitzacions. Lliurament instantani al teu còrtex visual.',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': 'Uneix-te al clar. Rep la nostra carta mensual sobre art, disseny i vida conscient.',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': 'Subscriu-te per transmetre els últims registres d’estètica digital directament al teu terminal matriu.',
+    'Your email address': 'La teva adreça electrònica',
+    'Email address': 'Adreça electrònica',
+    'admin@domain.com': 'admin@domini.com',
+    'your.email@wire.com': 'el.teu.email@cable.com',
+    'your.email@nature.com': 'el.teu.email@natura.com',
+    'SYSTEM@DOMAIN.EXE': 'SISTEMA@DOMINI.EXE',
+    'Subscribe': 'Subscriu-me',
+    'SUBSCRIBE': 'SUBSCRIU-ME',
+    '[ INJECT ]': '[ INJECTA ]',
+    'JOIN LETTERS': 'UNEIX-ME',
+    'TRANSMIT': 'TRANSMET',
+    'Configure newsletter endpoint': 'Configura l’endpoint del butlletí',
+    'CONFIGURE_ENDPOINT': 'CONFIGURA_ENDPOINT',
+    'CONFIGURE WIRE ENDPOINT': 'CONFIGURA L’ENDPOINT DEL CABLE',
+    'CONFIGURE_ENDPOINT.EXE': 'CONFIGURA_ENDPOINT.EXE',
+    'Configure': 'Configura',
+    'CONFIGURE': 'CONFIGURA',
+    '[ CONFIG ]': '[ CONFIGURA ]',
+    'CONFIG': 'CONFIGURA',
+    'Email Address': 'Adreça electrònica',
+    'Terminal Email Address': 'Adreça electrònica del terminal',
+    'Newsletter input': 'Camp del butlletí',
+    'E-mail for newsletter': 'Correu per al butlletí',
+    'Neon Email Terminal': 'Terminal de correu neó',
+    'All rights reserved.': 'Tots els drets reservats.',
+    'ALL RIGHTS SECURED.': 'TOTS ELS DRETS ASSEGURATS.',
+    'UNCOMPROMISING DIGITAL DISPATCH.': 'DESPATX DIGITAL SENSE CONCESSIONS.',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': 'SOSTINGUT EN HARMONIA AMB ECOSISTEMES DIGITALS.',
+    'ALL PROTOCOLS SECURED.': 'TOTS ELS PROTOCOLS ASSEGURATS.',
+    'Powered by': 'Creat amb',
+    'POWERED BY': 'CREAT AMB',
+    'COMPILED_BY:': 'COMPILAT_PER:',
+    'DESIGNED ON': 'DISSENYAT A',
+    'SYSTEM_ENGINE:': 'MOTOR_DEL_SISTEMA:',
+    'NAME:': 'NOM:',
+    'About Me': 'Sobre mi',
+    'Recent Posts': 'Publicacions recents',
+    'Recent Musings': 'Reflexions recents',
+    'Topics': 'Temes',
+    'Newsletter': 'Butlletí',
+    'RSS Feed': 'Canal RSS',
+    'Inner Circle Newsletter': 'Butlletí del cercle intern',
+    'Custom HTML Block': 'Bloc HTML personalitzat',
+    'Enter your email...': 'Introdueix el teu correu...',
+    'Enter your email for weekly updates...': 'Introdueix el teu correu per rebre novetats setmanals...'
+  },
+  zh: {
+    'Home': '首页',
+    'VOL.': '卷',
+    'NO.': '期',
+    'Search Archive': '搜索归档',
+    'Search posts, categories, or tags...': '搜索文章、分类或标签...',
+    'No matching posts found.': '未找到匹配的文章。',
+    'No posts published yet.': '还没有发布文章。',
+    '[ERROR: NO_POSTS_FOUND_IN_SECTOR]': '[错误：该区域没有文章]',
+    'NO ARTICLES REGISTERED IN ARCHIVES.': '归档中没有登记文章。',
+    'No publications found in the forest archives.': '森林归档中没有找到文章。',
+    'NO STATIC DATA SECTORS DETECTED.': '未检测到静态数据区域。',
+    'Read Entry →': '阅读条目 →',
+    'Explore Article →': '查看文章 →',
+    '[ EXECUTE_POST_READER ]': '[ 执行文章阅读器 ]',
+    'READ FULL STORY →': '阅读全文 →',
+    'CONTINUE READING': '继续阅读',
+    'LOAD ARTICLE_': '加载文章_',
+    '← Back to Musings': '← 返回随笔',
+    '← Back to Dashboard': '← 返回面板',
+    '[ BACK_TO_DIRECTORY ]': '[ 返回目录 ]',
+    '← BACK TO GAZETTE DIRECTORY': '← 返回公报目录',
+    '← BACK TO TREE HIERARCHY': '← 返回树形层级',
+    'System Status: ONLINE': '系统状态：在线',
+    'EDITION: DIGITAL AESTHETICS': '版本：数字美学',
+    'Subscribe for the latest design & dev updates directly to your inbox.': '订阅后即可在收件箱中收到最新设计与开发动态。',
+    'Subscribe for weekly drops of design, coding, and futuristic aesthetics.': '订阅每周设计、代码与未来美学更新。',
+    'CONNECT TO SECTOR NEWSLETTER STREAM.': '连接到区域通讯流。',
+    'Subscribe to our wire updates. Delivered instantly to your visual cortex.': '订阅我们的快讯，实时送达你的视觉皮层。',
+    'Join the clearing. Receive our monthly letter on art, design, and mindful living.': '加入这片空地，接收关于艺术、设计与正念生活的月度来信。',
+    'Subscribe to transmit the latest digital aesthetic logs directly to your matrix terminal.': '订阅后将最新数字美学日志传输到你的矩阵终端。',
+    'Your email address': '你的电子邮箱',
+    'Email address': '电子邮箱',
+    'admin@domain.com': 'admin@domain.com',
+    'your.email@wire.com': 'your.email@wire.com',
+    'your.email@nature.com': 'your.email@nature.com',
+    'SYSTEM@DOMAIN.EXE': 'SYSTEM@DOMAIN.EXE',
+    'Subscribe': '订阅',
+    'SUBSCRIBE': '订阅',
+    '[ INJECT ]': '[ 注入 ]',
+    'JOIN LETTERS': '加入来信',
+    'TRANSMIT': '传输',
+    'Configure newsletter endpoint': '配置通讯端点',
+    'CONFIGURE_ENDPOINT': '配置端点',
+    'CONFIGURE WIRE ENDPOINT': '配置快讯端点',
+    'CONFIGURE_ENDPOINT.EXE': '配置端点.EXE',
+    'Configure': '配置',
+    'CONFIGURE': '配置',
+    '[ CONFIG ]': '[ 配置 ]',
+    'CONFIG': '配置',
+    'Email Address': '电子邮箱',
+    'Terminal Email Address': '终端电子邮箱',
+    'Newsletter input': '通讯输入框',
+    'E-mail for newsletter': '通讯邮箱',
+    'Neon Email Terminal': '霓虹邮箱终端',
+    'All rights reserved.': '保留所有权利。',
+    'ALL RIGHTS SECURED.': '所有权利已保留。',
+    'UNCOMPROMISING DIGITAL DISPATCH.': '坚定的数字快讯。',
+    'SUSTAINED IN HARMONY WITH DIGITAL ECOSYSTEMS.': '与数字生态系统和谐共存。',
+    'ALL PROTOCOLS SECURED.': '所有协议已保护。',
+    'Powered by': '技术支持',
+    'POWERED BY': '技术支持',
+    'COMPILED_BY:': '编译者：',
+    'DESIGNED ON': '设计平台',
+    'SYSTEM_ENGINE:': '系统引擎：',
+    'NAME:': '名称：',
+    'About Me': '关于我',
+    'Recent Posts': '最新文章',
+    'Recent Musings': '最新随笔',
+    'Topics': '主题',
+    'Newsletter': '通讯',
+    'RSS Feed': 'RSS 订阅',
+    'Inner Circle Newsletter': '内圈通讯',
+    'Custom HTML Block': '自定义 HTML 区块',
+    'Enter your email...': '输入你的邮箱...',
+    'Enter your email for weekly updates...': '输入邮箱以接收每周更新...'
   },
   fr: {
     'Home': 'Accueil',
@@ -462,6 +623,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     socialLinks: { github: "", twitter: "", linkedin: "", instagram: "" },
     selectedTemplate: "nordic-minimal",
     locale: DEFAULT_LOCALE,
+    features: { ...DEFAULT_PUBLIC_FEATURES },
     themeText: normalizeThemeText(),
     widgets: [
       { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
@@ -771,9 +933,8 @@ function ogLocale(locale) {
   const map = {
     en: 'en_US',
     es: 'es_ES',
-    fr: 'fr_FR',
-    de: 'de_DE',
-    pt: 'pt_PT'
+    ca: 'ca_ES',
+    zh: 'zh_CN'
   };
   return map[normalizeLocale(locale)] || 'en_US';
 }
@@ -834,23 +995,29 @@ function createHomePageMeta(settings, homepageText, posts) {
   const url = absoluteUrl(settings, '/');
   const image = assetUrl(settings, settings.seoImage || settings.authorAvatar);
   const keywords = mergeKeywords(settings.seoKeywords, posts.flatMap(post => [post.category, ...(post.tags || [])]));
+  const feedUrl = settings.features.rss ? (absoluteUrl(settings, '/feed.xml') || '/feed.xml') : '';
+  const websiteSchema = {
+    '@type': 'WebSite',
+    '@id': absoluteUrl(settings, '/#website') || '#website',
+    name: homepageText.siteName,
+    url: url || '/',
+    inLanguage: settings.locale,
+    description,
+    publisher: { '@id': absoluteUrl(settings, '/#publisher') || '#publisher' }
+  };
+
+  if (settings.features.search) {
+    websiteSchema.potentialAction = {
+      '@type': 'SearchAction',
+      target: `${url || '/'}?q={search_term_string}`,
+      'query-input': 'required name=search_term_string'
+    };
+  }
+
   const graph = [
     createPublisherSchema(settings),
     createPersonSchema(settings),
-    {
-      '@type': 'WebSite',
-      '@id': absoluteUrl(settings, '/#website') || '#website',
-      name: homepageText.siteName,
-      url: url || '/',
-      inLanguage: settings.locale,
-      description,
-      publisher: { '@id': absoluteUrl(settings, '/#publisher') || '#publisher' },
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: `${url || '/'}?q={search_term_string}`,
-        'query-input': 'required name=search_term_string'
-      }
-    },
+    websiteSchema,
     {
       '@type': 'Blog',
       '@id': absoluteUrl(settings, '/#blog') || '#blog',
@@ -881,6 +1048,8 @@ function createHomePageMeta(settings, homepageText, posts) {
     keywords,
     robots: settings.allowIndexing ? 'index, follow, max-image-preview:large' : 'noindex, nofollow',
     locale: ogLocale(settings.locale),
+    feedUrl,
+    feedTitle: `${homepageText.siteName} ${translateText('RSS Feed', settings.locale)}`,
     jsonLd: { '@context': 'https://schema.org', '@graph': graph }
   };
 }
@@ -890,6 +1059,7 @@ function createPostPageMeta(settings, homepageText, post) {
   const url = absoluteUrl(settings, pagePathForPost(post));
   const image = assetUrl(settings, post.coverImage || settings.seoImage || settings.authorAvatar);
   const keywords = mergeKeywords(settings.seoKeywords, post.category, post.tags);
+  const feedUrl = settings.features.rss ? (absoluteUrl(settings, '/feed.xml') || '/feed.xml') : '';
   const authorId = absoluteUrl(settings, '/#author') || '#author';
   const publisherId = absoluteUrl(settings, '/#publisher') || '#publisher';
   const postId = `${url || pagePathForPost(post)}#blogposting`;
@@ -951,6 +1121,8 @@ function createPostPageMeta(settings, homepageText, post) {
     section: post.category,
     tags: post.tags || [],
     author: settings.authorName,
+    feedUrl,
+    feedTitle: `${homepageText.siteName} ${translateText('RSS Feed', settings.locale)}`,
     jsonLd: { '@context': 'https://schema.org', '@graph': graph }
   };
 }
@@ -1003,6 +1175,57 @@ function createSitemapXml(settings, posts, generatedAt) {
     '</urlset>',
     ''
   ].join('\n');
+}
+
+function rssDate(value) {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date().toUTCString() : date.toUTCString();
+}
+
+function cdata(value) {
+  return `<![CDATA[${String(value || '').replace(/\]\]>/g, ']]]]><![CDATA[>')}]]>`;
+}
+
+function createRssFeedXml(settings, homepageText, posts, generatedAt) {
+  const siteUrl = absoluteUrl(settings, '/') || '/';
+  const feedUrl = absoluteUrl(settings, '/feed.xml') || '/feed.xml';
+  const feedTitle = `${homepageText.siteName} ${translateText('RSS Feed', settings.locale)}`;
+  const description = settings.seoDescription || homepageText.siteSubtitle || 'Static blog archive.';
+  const feedImage = assetUrl(settings, settings.seoImage || settings.authorAvatar);
+  const items = posts.map(post => {
+    const postUrl = absoluteUrl(settings, pagePathForPost(post)) || pagePathForPost(post);
+    const categories = [post.category, ...(post.tags || [])].filter(Boolean);
+    return [
+      '    <item>',
+      `      <title>${xmlEscape(post.title)}</title>`,
+      `      <link>${xmlEscape(postUrl)}</link>`,
+      `      <guid isPermaLink="true">${xmlEscape(postUrl)}</guid>`,
+      `      <description>${xmlEscape(post.description || post.plainText || '')}</description>`,
+      `      <pubDate>${xmlEscape(rssDate(post.date))}</pubDate>`,
+      `      <dc:creator>${xmlEscape(settings.authorName || settings.siteName)}</dc:creator>`,
+      ...categories.map(category => `      <category>${xmlEscape(category)}</category>`),
+      `      <content:encoded>${cdata(post.content || '')}</content:encoded>`,
+      '    </item>'
+    ].join('\n');
+  });
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">',
+    '  <channel>',
+    `    <title>${xmlEscape(feedTitle)}</title>`,
+    `    <link>${xmlEscape(siteUrl)}</link>`,
+    `    <description>${xmlEscape(description)}</description>`,
+    `    <language>${xmlEscape(settings.locale)}</language>`,
+    `    <lastBuildDate>${xmlEscape(rssDate(generatedAt))}</lastBuildDate>`,
+    `    <generator>ZenithPress</generator>`,
+    `    <atom:link href="${xmlEscape(feedUrl)}" rel="self" type="application/rss+xml" />`,
+    feedImage ? `    <image><url>${xmlEscape(feedImage)}</url><title>${xmlEscape(feedTitle)}</title><link>${xmlEscape(siteUrl)}</link></image>` : '',
+    ...items,
+    '  </channel>',
+    '</rss>',
+    ''
+  ].filter(line => line !== '').join('\n');
 }
 
 function createRobotsTxt(settings) {
@@ -1060,9 +1283,10 @@ function createLlmsTxt(settings, homepageText, posts) {
   });
   const optional = [
     `- [Sitemap](${absoluteUrl(settings, '/sitemap.xml') || '/sitemap.xml'}): XML list of canonical public URLs`,
-    `- [Search index](${absoluteUrl(settings, '/search.json') || '/search.json'}): Machine-readable post metadata used by the public search UI`,
+    settings.features.rss ? `- [RSS feed](${absoluteUrl(settings, '/feed.xml') || '/feed.xml'}): XML feed of published posts for readers and aggregators` : '',
+    settings.features.search ? `- [Search index](${absoluteUrl(settings, '/search.json') || '/search.json'}): Machine-readable post metadata used by the public search UI` : '',
     `- [Full LLM context](${absoluteUrl(settings, '/llms-full.txt') || '/llms-full.txt'}): Plain Markdown bundle of the public archive`
-  ];
+  ].filter(Boolean);
 
   return [
     `# ${homepageText.siteName}`,
@@ -1197,6 +1421,7 @@ function renderSeoHead(pageMeta = {}) {
     metaTag('keywords', (pageMeta.keywords || []).join(', ')),
     pageMeta.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(pageMeta.canonicalUrl)}">` : '',
     pageMeta.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(pageMeta.markdownUrl)}">` : '',
+    pageMeta.feedUrl ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(pageMeta.feedTitle || `${pageMeta.siteName || 'ZenithPress'} RSS Feed`)}" href="${escapeHtml(pageMeta.feedUrl)}">` : '',
     propertyTag('og:type', pageMeta.type === 'article' ? 'article' : 'website'),
     propertyTag('og:title', pageMeta.title),
     propertyTag('og:description', pageMeta.description),
@@ -1274,7 +1499,25 @@ function normalizeWidget(widget = {}) {
   };
 }
 
+function normalizeFeatureFlags(features = {}) {
+  return {
+    search: features.search !== false,
+    newsletter: features.newsletter !== false,
+    about: features.about !== false,
+    rss: features.rss !== false
+  };
+}
+
+function filterWidgetsForFeatures(widgets, features) {
+  return widgets.filter(widget => {
+    if (widget.type === 'newsletter' && features.newsletter === false) return false;
+    if (widget.type === 'bio' && features.about === false) return false;
+    return true;
+  });
+}
+
 function normalizeSettings(settings = {}) {
+  const widgets = Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : [];
   return {
     siteName: String(settings.siteName || 'Zenith Press'),
     siteSubtitle: String(settings.siteSubtitle || ''),
@@ -1294,8 +1537,9 @@ function normalizeSettings(settings = {}) {
     },
     selectedTemplate: String(settings.selectedTemplate || 'nordic-minimal'),
     locale: normalizeLocale(settings.locale),
+    features: normalizeFeatureFlags(settings.features),
     themeText: normalizeThemeText(settings.themeText),
-    widgets: Array.isArray(settings.widgets) ? settings.widgets.map(normalizeWidget) : []
+    widgets
   };
 }
 
@@ -1673,6 +1917,7 @@ app.post('/api/publish', async (req, res) => {
       };
     });
     const publishNow = new Date();
+    const visibleWidgets = filterWidgetsForFeatures(settings.widgets, settings.features);
 
     // 5. Load EJS layouts
     const indexEjsPath = path.join(activeTemplateDir, 'index.ejs');
@@ -1699,8 +1944,9 @@ app.post('/api/publish', async (req, res) => {
       authorAvatar: settings.authorAvatar,
       socialLinks: settings.socialLinks,
       locale: settings.locale,
+      features: settings.features,
       themeText: settings.themeText,
-      widgets: resolveWidgets(settings.widgets, homepageVariables, settings.locale),
+      widgets: resolveWidgets(visibleWidgets, homepageVariables, settings.locale),
       helpers: createTemplateHelpers(settings, homepageVariables),
       pageMeta: homepageMeta,
       variables: homepageVariables,
@@ -1736,8 +1982,9 @@ app.post('/api/publish', async (req, res) => {
         authorAvatar: settings.authorAvatar,
         socialLinks: settings.socialLinks,
         locale: settings.locale,
+        features: settings.features,
         themeText: settings.themeText,
-        widgets: resolveWidgets(settings.widgets, singlePostVariables, settings.locale),
+        widgets: resolveWidgets(visibleWidgets, singlePostVariables, settings.locale),
         helpers: createTemplateHelpers(settings, singlePostVariables),
         pageMeta: singlePostMeta,
         variables: singlePostVariables,
@@ -1764,12 +2011,12 @@ app.post('/api/publish', async (req, res) => {
       logMsg("Copied template script asset (script.js).");
     }
 
-    if (fs.existsSync(COMMON_SEARCH_SCRIPT)) {
+    if (settings.features.search && fs.existsSync(COMMON_SEARCH_SCRIPT)) {
       fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(OUT_DIR, 'search.js'));
       logMsg("Copied shared search script (search.js).");
     }
 
-    if (fs.existsSync(COMMON_SEARCH_STYLE)) {
+    if (settings.features.search && fs.existsSync(COMMON_SEARCH_STYLE)) {
       fs.copyFileSync(COMMON_SEARCH_STYLE, path.join(OUT_DIR, 'search.css'));
       logMsg("Copied shared search stylesheet (search.css).");
     }
@@ -1791,25 +2038,35 @@ app.post('/api/publish', async (req, res) => {
     }
 
     // 10. Generate search JSON index
-    logMsg("Building client-side search database (search.json)...");
-    const searchIndex = compiledPosts.map(p => ({
-      title: p.title,
-      slug: p.slug,
-      url: absoluteUrl(settings, pagePathForPost(p)) || pagePathForPost(p),
-      markdownUrl: absoluteUrl(settings, markdownPathForPost(p)) || markdownPathForPost(p),
-      category: p.category,
-      description: p.description,
-      date: p.date,
-      dateModified: p.modifiedAt || toIsoDate(p.date),
-      formattedDate: formatDateForLocale(p.date, settings.locale),
-      readingTime: p.readingTime,
-      wordCount: p.wordCount,
-      tags: p.tags
-    }));
-    fs.writeFileSync(path.join(OUT_DIR, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');
-    logMsg("Search database written.");
+    if (settings.features.search) {
+      logMsg("Building client-side search database (search.json)...");
+      const searchIndex = compiledPosts.map(p => ({
+        title: p.title,
+        slug: p.slug,
+        url: absoluteUrl(settings, pagePathForPost(p)) || pagePathForPost(p),
+        markdownUrl: absoluteUrl(settings, markdownPathForPost(p)) || markdownPathForPost(p),
+        category: p.category,
+        description: p.description,
+        date: p.date,
+        dateModified: p.modifiedAt || toIsoDate(p.date),
+        formattedDate: formatDateForLocale(p.date, settings.locale),
+        readingTime: p.readingTime,
+        wordCount: p.wordCount,
+        tags: p.tags
+      }));
+      fs.writeFileSync(path.join(OUT_DIR, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');
+      logMsg("Search database written.");
+    } else {
+      logMsg("Search feature disabled; skipped search assets and index.");
+    }
 
     fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, publishNow), 'utf-8');
+    if (settings.features.rss) {
+      fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), createRssFeedXml(settings, homepageText, compiledPosts, publishNow), 'utf-8');
+      logMsg("RSS feed written (feed.xml).");
+    } else {
+      logMsg("RSS feed disabled; skipped feed.xml.");
+    }
     fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), createRobotsTxt(settings), 'utf-8');
     fs.writeFileSync(path.join(OUT_DIR, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts), 'utf-8');
     fs.writeFileSync(path.join(OUT_DIR, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts), 'utf-8');

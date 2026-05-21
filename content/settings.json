@@ -4,13 +4,47 @@
   "authorName": "Aara Dev",
   "authorBio": "Designer, coder, and creative explorer. Crafting premium web experiences and writing about modern typography, graphics, and animations.",
   "authorAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+  "siteUrl": "",
+  "seoDescription": "",
+  "seoKeywords": "",
+  "seoImage": "",
+  "allowIndexing": true,
   "socialLinks": {
     "github": "https://github.com/zenith-press",
     "twitter": "https://twitter.com/zenith_press",
     "linkedin": "https://linkedin.com",
     "instagram": "https://instagram.com"
   },
-  "selectedTemplate": "brutalist-newspaper",
+  "selectedTemplate": "eco-forest",
+  "locale": "en",
+  "features": {
+    "search": true,
+    "newsletter": true,
+    "about": true,
+    "rss": true
+  },
+  "themeText": {
+    "searchLabel": "",
+    "searchPlaceholder": "",
+    "searchNoResults": "",
+    "emptyState": "",
+    "readMoreLabel": "",
+    "backLinkLabel": "",
+    "statusLabel": "",
+    "editionLabel": "",
+    "terminalTitle": "",
+    "footerTerminalTitle": "",
+    "newsletterDescription": "",
+    "newsletterSubmitLabel": "",
+    "newsletterPlaceholder": "",
+    "newsletterDisabledPlaceholder": "",
+    "newsletterDisabledLabel": "",
+    "newsletterEmailLabel": "",
+    "footerRights": "",
+    "footerCreditLabel": "",
+    "footerCreditText": "",
+    "footerCreditUrl": ""
+  },
   "widgets": [
     {
       "id": "bio",
@@ -18,7 +52,10 @@
       "type": "bio",
       "enabled": true,
       "position": "sidebar",
-      "order": 1
+      "order": 1,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
     },
     {
       "id": "recent-posts",
@@ -26,7 +63,10 @@
       "type": "recent-posts",
       "enabled": true,
       "position": "sidebar",
-      "order": 2
+      "order": 2,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
     },
     {
       "id": "tag-cloud",
@@ -34,7 +74,10 @@
       "type": "tag-cloud",
       "enabled": true,
       "position": "sidebar",
-      "order": 3
+      "order": 3,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
     },
     {
       "id": "newsletter",
@@ -43,8 +86,9 @@
       "enabled": true,
       "position": "footer",
       "order": 4,
-      "placeholderText": "Enter your email for weekly updates..."
+      "placeholderText": "Enter your email for weekly updates...",
+      "actionUrl": "",
+      "htmlContent": ""
     }
-  ],
-  "locale": "en"
+  ]
 }

@@ -10,7 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
 </head>
 <body class="vaporwave-theme">
   <!-- Vaporwave Sun Background Grid & Scanline overlays -->
@@ -29,11 +31,13 @@
 
   <div class="main-layout animate-fade-in">
     <main class="posts-feed">
+      <% if (features.search) { %>
       <section class="search-panel" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
         <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
         <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
+      <% } %>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state vapor-panel">
@@ -149,6 +153,8 @@
       </div>
     </div>
   </footer>
+  <% if (features.search) { %>
   <script src="/search.js" defer></script>
+  <% } %>
 </body>
 </html>

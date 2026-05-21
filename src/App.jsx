@@ -37,9 +37,8 @@ const THEME_TEXT_FIELDS = [
 const SUPPORTED_LOCALES = [
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Español' },
-  { value: 'fr', label: 'Français' },
-  { value: 'de', label: 'Deutsch' },
-  { value: 'pt', label: 'Português' }
+  { value: 'ca', label: 'Català' },
+  { value: 'zh', label: '中文' }
 ];
 
 const DYNAMIC_VARIABLE_TOKENS = [
@@ -64,6 +63,29 @@ const DYNAMIC_VARIABLE_TOKENS = [
   '{postTitle}',
   '{postDate}',
   '{postIsoDate}'
+];
+
+const PUBLIC_FEATURE_FIELDS = [
+  {
+    key: 'search',
+    label: 'Search',
+    description: 'Show the public search box and emit search assets.'
+  },
+  {
+    key: 'newsletter',
+    label: 'Mailing List',
+    description: 'Show newsletter signup widgets when they are enabled.'
+  },
+  {
+    key: 'about',
+    label: 'About Me',
+    description: 'Show author bio widgets when they are enabled.'
+  },
+  {
+    key: 'rss',
+    label: 'RSS Feed',
+    description: 'Generate /feed.xml and add feed discovery links.'
+  }
 ];
 
 export default function App() {
@@ -237,6 +259,20 @@ export default function App() {
       ...prev,
       themeText: {
         ...(prev.themeText || {}),
+        [key]: value
+      }
+    }));
+  };
+
+  const updateFeatureFlag = (key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      features: {
+        search: true,
+        newsletter: true,
+        about: true,
+        rss: true,
+        ...(prev.features || {}),
         [key]: value
       }
     }));
@@ -1100,6 +1136,48 @@ export default function App() {
                     onClick={() => saveSettings(settings)}
                   >
                     💾 Save SEO Settings
+                  </button>
+                </div>
+
+                <div className="brand-settings-card" style={{ marginTop: '30px' }}>
+                  <h3>Public Feature Visibility</h3>
+                  <div style={{ display: 'grid', gap: '14px' }}>
+                    {PUBLIC_FEATURE_FIELDS.map(feature => (
+                      <div
+                        key={feature.key}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '18px',
+                          padding: '14px',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: '8px'
+                        }}
+                      >
+                        <div>
+                          <strong style={{ display: 'block', marginBottom: '4px' }}>{feature.label}</strong>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.86rem' }}>
+                            {feature.description}
+                          </span>
+                        </div>
+                        <label className="switch" aria-label={`Toggle ${feature.label}`}>
+                          <input
+                            type="checkbox"
+                            checked={(settings.features?.[feature.key] ?? true) !== false}
+                            onChange={(e) => updateFeatureFlag(feature.key, e.target.checked)}
+                          />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    className="solid-btn"
+                    style={{ alignSelf: 'flex-start', marginTop: '18px' }}
+                    onClick={() => saveSettings(settings)}
+                  >
+                    Save Feature Visibility
                   </button>
                 </div>
 

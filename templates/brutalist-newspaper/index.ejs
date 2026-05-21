@@ -10,7 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Syne:wght@500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
 </head>
 <body class="brutalist-theme">
   <div class="newspaper-top-bar">
@@ -28,11 +30,13 @@
 
   <div class="main-layout animate-slide-up">
     <main class="posts-feed">
+      <% if (features.search) { %>
       <section class="search-panel" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
         <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
         <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
+      <% } %>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state brutalist-card">
@@ -154,6 +158,8 @@
       </div>
     </div>
   </footer>
+  <% if (features.search) { %>
   <script src="/search.js" defer></script>
+  <% } %>
 </body>
 </html>

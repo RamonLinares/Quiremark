@@ -10,7 +10,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <% if (features.search) { %>
   <link rel="stylesheet" href="/search.css">
+  <% } %>
 </head>
 <body class="neoglass-theme">
   <!-- Glowing gradient backgrounds -->
@@ -26,11 +28,13 @@
 
   <div class="main-layout animate-fade-in">
     <main class="posts-feed">
+      <% if (features.search) { %>
       <section class="search-panel" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
         <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
         <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
         <div class="search-results" data-search-results aria-live="polite"></div>
       </section>
+      <% } %>
 
       <% if (posts.length === 0) { %>
         <div class="empty-state glass-panel">
@@ -150,6 +154,8 @@
       </div>
     </div>
   </footer>
+  <% if (features.search) { %>
   <script src="/search.js" defer></script>
+  <% } %>
 </body>
 </html>
