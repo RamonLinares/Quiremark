@@ -1,0 +1,124 @@
+{
+  "siteName": "WebDemo",
+  "siteSubtitle": "",
+  "authorName": "",
+  "authorBio": "",
+  "authorAvatar": "",
+  "siteUrl": "",
+  "seoDescription": "",
+  "seoKeywords": "",
+  "seoImage": "",
+  "allowIndexing": true,
+  "socialLinks": {
+    "github": "",
+    "twitter": "",
+    "linkedin": "",
+    "instagram": ""
+  },
+  "selectedTemplate": "nordic-minimal",
+  "locale": "en",
+  "features": {
+    "search": true,
+    "newsletter": true,
+    "about": true,
+    "rss": true,
+    "categories": true
+  },
+  "categories": [
+    {
+      "slug": "design",
+      "name": "Design",
+      "description": "Visual design, brand systems, typography, and creative direction.",
+      "color": "#a855f7"
+    },
+    {
+      "slug": "development",
+      "name": "Development",
+      "description": "Engineering notes, architecture, tooling, and implementation details.",
+      "color": "#06b6d4"
+    },
+    {
+      "slug": "creative",
+      "name": "Creative",
+      "description": "Experiments across art, media, writing, and making.",
+      "color": "#ec4899"
+    },
+    {
+      "slug": "tech",
+      "name": "Tech",
+      "description": "Technology trends, platforms, and digital culture.",
+      "color": "#22c55e"
+    }
+  ],
+  "analytics": {
+    "googleMeasurementId": ""
+  },
+  "themeText": {
+    "searchLabel": "",
+    "searchPlaceholder": "",
+    "searchNoResults": "",
+    "emptyState": "",
+    "readMoreLabel": "",
+    "backLinkLabel": "",
+    "statusLabel": "",
+    "editionLabel": "",
+    "terminalTitle": "",
+    "footerTerminalTitle": "",
+    "newsletterDescription": "",
+    "newsletterSubmitLabel": "",
+    "newsletterPlaceholder": "",
+    "newsletterDisabledPlaceholder": "",
+    "newsletterDisabledLabel": "",
+    "newsletterEmailLabel": "",
+    "footerRights": "",
+    "footerCreditLabel": "",
+    "footerCreditText": "",
+    "footerCreditUrl": ""
+  },
+  "widgets": [
+    {
+      "id": "bio",
+      "name": "About Me",
+      "type": "bio",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 1,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
+    },
+    {
+      "id": "recent-posts",
+      "name": "Recent Posts",
+      "type": "recent-posts",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 2,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
+    },
+    {
+      "id": "tag-cloud",
+      "name": "Topics",
+      "type": "tag-cloud",
+      "enabled": true,
+      "position": "sidebar",
+      "order": 3,
+      "placeholderText": "",
+      "actionUrl": "",
+      "htmlContent": ""
+    },
+    {
+      "id": "newsletter",
+      "name": "Newsletter",
+      "type": "newsletter",
+      "enabled": true,
+      "position": "footer",
+      "order": 4,
+      "placeholderText": "Enter your email...",
+      "actionUrl": "",
+      "htmlContent": ""
+    }
+  ]
+}

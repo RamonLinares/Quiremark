@@ -4,7 +4,8 @@
 
 ## Features
 
-- **Markdown content store**: Posts live in `content/posts/`; site settings live in `content/settings.json`.
+- **Markdown content store**: The main website uses `content/posts/` and `content/settings.json`; additional websites use isolated `sites/<id>/content/` workspaces.
+- **Multi-website admin**: Select or create websites from the admin sidebar, edit each site independently, compile to its own output folder, and deploy each one to its own GitHub repository.
 - **Local admin dashboard**: The `/admin` React app manages posts, settings, themes, widgets, publishing, and deployment.
 - **Authenticated local API**: Login issues an expiring bearer token, and all non-login `/api/*` routes require it.
 - **Safer static compiler**: Markdown is sanitized before template injection, slugs are validated, and output paths are constrained to the expected folders.
@@ -16,7 +17,7 @@
 - **Google Analytics consent flow**: Add a GA4 `G-...` measurement ID to emit a localized consent dialog, Google Consent Mode defaults, and privacy preference controls on the static site.
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
 - **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
-- **GitHub Pages deployer**: The local backend deploys `out/` to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
+- **GitHub Pages deployer**: The local backend deploys the selected website output to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
 - **6 visual templates**:
   - `nordic-minimal`
   - `neo-glass`
@@ -59,7 +60,30 @@ PUBLIC_SITE_URL=https://example.com
 
 Set `ADMIN_PASSWORD` before using the admin dashboard beyond local testing.
 
-Locale is a top-level site setting:
+Website workspaces are tracked in `sites/registry.json`. The built-in `main` website keeps using the existing `content/` and `out/` folders. New websites created from the admin use:
+
+```text
+sites/<id>/content/settings.json
+sites/<id>/content/posts/
+sites/<id>/content/images/
+sites/<id>/out/
+```
+
+Each registry entry stores a display name and deployment defaults:
+
+```json
+{
+  "id": "portfolio",
+  "name": "Portfolio",
+  "deploy": {
+    "remoteUrl": "git@github.com:user/portfolio.git",
+    "branch": "gh-pages",
+    "commitMessage": "Publish: Static Pages Deploy"
+  }
+}
+```
+
+Locale is a top-level setting inside each website's `settings.json`:
 
 ```json
 {
@@ -121,7 +145,7 @@ Newsletter widgets support:
 
 The generated static site submits a single `email` field with `method="post"` to `actionUrl`.
 
-Supported website locales are `en`, `es`, `ca`, and `zh`. Locale is stored as `locale` in `content/settings.json` and can be changed from **Site Settings** in the admin. Theme defaults and exact default widget labels are localized; custom copy overrides and Markdown post content are not machine-translated.
+Supported website locales are `en`, `es`, `ca`, and `zh`. Locale is stored as `locale` in each website's `settings.json` and can be changed from **Site Settings** in the admin. Theme defaults and exact default widget labels are localized; custom copy overrides and Markdown post content are not machine-translated.
 
 Set `siteUrl` or `PUBLIC_SITE_URL` before publishing a production site. The compiler uses that base URL for canonical links, Open Graph URLs, Schema.org identifiers, sitemap entries, and LLM discovery links. If it is omitted, the site still builds, but absolute discovery URLs are intentionally left blank or relative.
 
@@ -150,25 +174,26 @@ Supported variables include:
 
 ## Static Publishing
 
-Click **Compile** in the dashboard or send an authenticated `POST /api/publish`.
+Select a website in the admin sidebar, then click **Compile** in the dashboard or send an authenticated `POST /api/publish` with `X-Zenith-Site: <id>`.
 
 The compiler:
 
-- Cleans `out/` while preserving `out/.git`.
+- Cleans the selected website output folder while preserving its `.git` directory.
 - Reads non-draft Markdown posts.
 - Sanitizes rendered Markdown HTML.
-- Generates `index.html`, clean post URLs under `out/posts/<slug>/index.html`, optional category archives under `out/categories/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional analytics consent assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
+- Generates `index.html`, clean post URLs under `posts/<slug>/index.html`, optional category archives under `categories/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional analytics consent assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
 - Adds Schema.org `WebSite`, `Blog`, `BlogPosting`, `CollectionPage`, `ItemList`, `Person`, `Organization`, and `BreadcrumbList` JSON-LD where relevant.
 - Copies the selected template stylesheet, optional shared search stylesheet/script, optional shared taxonomy stylesheet, optional shared consent stylesheet/script, favicon, and uploaded images.
 
-Click **Deploy** in the dashboard or send an authenticated `POST /api/deploy`.
+Click **Deploy** in the dashboard or send an authenticated `POST /api/deploy` with `X-Zenith-Site: <id>`.
 
-The deployer only accepts GitHub SSH/HTTPS remotes, safe branch names, and bounded commit messages. It runs Git through argument arrays, not shell interpolation.
+The deployer only accepts GitHub SSH/HTTPS remotes, safe branch names, and bounded commit messages. It runs Git through argument arrays, not shell interpolation. Each website output folder is its own local Git workspace, so different websites can target different repositories without remote collisions.
 
 ## Project Structure
 
 ```text
 content/                 Blog settings, posts, and uploaded images
+sites/                   Multi-website registry and extra website workspaces
 src/                     React admin dashboard
 templates/               EJS themes plus shared search/taxonomy/consent assets
 out/                     Generated static site output
@@ -177,4 +202,4 @@ server.js                Express API, compiler, and deployer
 vite.config.js           Vite config and local API proxy
 ```
 
-`dist/`, `out/`, and `node_modules/` are ignored because they are generated artifacts.
+`dist/`, `out/`, `sites/*/out/`, and `node_modules/` are ignored because they are generated artifacts.

@@ -1,0 +1,27 @@
+{
+  "activeSiteId": "webdemo",
+  "sites": [
+    {
+      "id": "main",
+      "name": "Zenith Press",
+      "deploy": {
+        "remoteUrl": "",
+        "branch": "gh-pages",
+        "commitMessage": "Publish: Static Pages Deploy"
+      },
+      "createdAt": "2026-05-21T13:17:47.416Z",
+      "updatedAt": "2026-05-21T13:17:47.416Z"
+    },
+    {
+      "id": "webdemo",
+      "name": "WebDemo",
+      "deploy": {
+        "remoteUrl": "",
+        "branch": "gh-pages",
+        "commitMessage": "Publish: Static Pages Deploy"
+      },
+      "createdAt": "2026-05-21T13:27:44.732Z",
+      "updatedAt": "2026-05-21T13:27:44.732Z"
+    }
+  ]
+}

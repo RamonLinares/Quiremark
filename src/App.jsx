@@ -4,6 +4,8 @@ import DOMPurify from 'dompurify';
 
 const TOKEN_KEY = 'zenith_token';
 const TOKEN_EXPIRY_KEY = 'zenith_token_expires_at';
+const SITE_KEY = 'zenith_site_id';
+const MAIN_SITE_ID = 'main';
 
 const sanitizeSlugInput = (value) => value
   .toLowerCase()
@@ -137,6 +139,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, posts, appearance, settings, publisher
 
   // App States
+  const [sites, setSites] = useState([]);
+  const [selectedSiteId, setSelectedSiteId] = useState(() => localStorage.getItem(SITE_KEY) || MAIN_SITE_ID);
+  const [newSiteName, setNewSiteName] = useState('');
   const [settings, setSettings] = useState(null);
   const [posts, setPosts] = useState([]);
   const [consoleLogs, setConsoleLogs] = useState([
@@ -168,6 +173,10 @@ export default function App() {
 
   const [isCompiling, setIsCompiling] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+  const selectedSite = useMemo(
+    () => sites.find(site => site.id === selectedSiteId) || sites[0] || null,
+    [sites, selectedSiteId]
+  );
   const previewHtml = useMemo(
     () => DOMPurify.sanitize(marked.parse(editingPost.content || '*Empty post draft...*')),
     [editingPost.content]
@@ -191,7 +200,7 @@ export default function App() {
     const expiresAt = Number(localStorage.getItem(TOKEN_EXPIRY_KEY) || 0);
     if (authToken && expiresAt > Date.now()) {
       setIsLoggedIn(true);
-      fetchData(authToken);
+      fetchData(authToken, selectedSiteId);
     } else if (authToken) {
       handleLogout('Session expired. Please sign in again.');
     }
@@ -203,13 +212,17 @@ export default function App() {
     setAuthToken('');
     setIsLoggedIn(false);
     setSettings(null);
+    setSites([]);
     setAuthError(message);
   };
 
-  const apiFetch = async (url, options = {}, tokenOverride = authToken) => {
+  const apiFetch = async (url, options = {}, tokenOverride = authToken, siteOverride = selectedSiteId) => {
     const headers = new Headers(options.headers || {});
     if (tokenOverride) {
       headers.set('Authorization', `Bearer ${tokenOverride}`);
+    }
+    if (siteOverride) {
+      headers.set('X-Zenith-Site', siteOverride);
     }
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {
@@ -226,24 +239,36 @@ export default function App() {
     return data;
   };
 
-  const fetchData = async (tokenOverride = authToken) => {
+  const updateDeploySettingsFromSite = (site) => {
+    const deploy = site?.deploy || {};
+    setDeploySettings({
+      remoteUrl: deploy.remoteUrl || '',
+      branch: deploy.branch || 'gh-pages',
+      commitMessage: deploy.commitMessage || 'Publish: Static Pages Deploy'
+    });
+  };
+
+  const fetchData = async (tokenOverride = authToken, preferredSiteId = selectedSiteId) => {
     try {
+      const sitesRes = await apiFetch('/api/sites', {}, tokenOverride, '');
+      const sitesData = await readApiResponse(sitesRes);
+      const nextSites = Array.isArray(sitesData.sites) ? sitesData.sites : [];
+      const nextSite = nextSites.find(site => site.id === preferredSiteId)
+        || nextSites.find(site => site.id === sitesData.activeSiteId)
+        || nextSites[0];
+      const nextSiteId = nextSite?.id || MAIN_SITE_ID;
+      setSites(nextSites);
+      setSelectedSiteId(nextSiteId);
+      localStorage.setItem(SITE_KEY, nextSiteId);
+      updateDeploySettingsFromSite(nextSite);
+
       const [settingsRes, postsRes] = await Promise.all([
-        apiFetch('/api/settings', {}, tokenOverride),
-        apiFetch('/api/posts', {}, tokenOverride)
+        apiFetch('/api/settings', {}, tokenOverride, nextSiteId),
+        apiFetch('/api/posts', {}, tokenOverride, nextSiteId)
       ]);
       const settingsData = await readApiResponse(settingsRes);
       const postsData = await readApiResponse(postsRes);
       setSettings(settingsData);
-      if (settingsData.socialLinks?.github) {
-        const githubRemote = settingsData.socialLinks.github.endsWith('.git')
-          ? settingsData.socialLinks.github
-          : `${settingsData.socialLinks.github}.git`;
-        setDeploySettings(prev => ({
-          ...prev,
-          remoteUrl: githubRemote
-        }));
-      }
       setPosts(postsData);
     } catch (err) {
       logMsg(err.message || 'Failed to sync settings and post databases from local Express server.', 'error');
@@ -253,6 +278,62 @@ export default function App() {
   const logMsg = (msg, type = 'system') => {
     const time = new Date().toLocaleTimeString();
     setConsoleLogs(prev => [...prev, `[${time}] ${msg}`]);
+  };
+
+  const switchSite = async (siteId) => {
+    if (!siteId || siteId === selectedSiteId) return;
+    setSettings(null);
+    setPosts([]);
+    setIsEditingPost(false);
+    setSelectedSiteId(siteId);
+    localStorage.setItem(SITE_KEY, siteId);
+    await fetchData(authToken, siteId);
+    logMsg(`Selected website workspace: ${siteId}`);
+  };
+
+  const saveSelectedSite = async (patch = {}) => {
+    if (!selectedSite) return null;
+    const res = await apiFetch(`/api/sites/${selectedSite.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    }, authToken, selectedSite.id);
+    const data = await readApiResponse(res);
+    if (data.success && data.site) {
+      setSites(prev => prev.map(site => (site.id === data.site.id ? { ...site, ...data.site } : site)));
+      if (patch.deploy) updateDeploySettingsFromSite(data.site);
+      return data.site;
+    }
+    return null;
+  };
+
+  const createSite = async () => {
+    const name = newSiteName.trim();
+    if (!name) {
+      logMsg('Website name is required before creating a new workspace.', 'error');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/sites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      }, authToken, '');
+      const data = await readApiResponse(res);
+      if (data.success && data.site) {
+        setNewSiteName('');
+        setActiveTab('dashboard');
+        await fetchData(authToken, data.site.id);
+        logMsg(`Website workspace created: ${data.site.name}`);
+      }
+    } catch (err) {
+      logMsg(err.message || 'Failed to create website workspace.', 'error');
+    }
+  };
+
+  const resolveAdminAssetUrl = (url) => {
+    if (!url || selectedSiteId === MAIN_SITE_ID || !url.startsWith('/content/images/')) return url;
+    return `/site-assets/${selectedSiteId}${url}`;
   };
 
   // Auth handler
@@ -453,7 +534,8 @@ export default function App() {
       if (data.success) {
         // Stream build logs
         data.log.forEach(l => logMsg(l));
-        logMsg('Static compilation finished. Local build stored in /out directory.', 'system');
+        const previewUrl = selectedSiteId === MAIN_SITE_ID ? '/' : `/preview/${selectedSiteId}/`;
+        logMsg(`Static compilation finished for ${selectedSite?.name || selectedSiteId}. Preview at ${previewUrl}`, 'system');
       } else {
         logMsg(data.error || 'Compilation failed.', 'error');
       }
@@ -472,8 +554,9 @@ export default function App() {
     }
     setIsDeploying(true);
     setActiveTab('publisher');
-    logMsg(`Initiating shell Deployer to target: ${deploySettings.remoteUrl}...`);
+    logMsg(`Initiating shell Deployer for ${selectedSite?.name || selectedSiteId} to target: ${deploySettings.remoteUrl}...`);
     try {
+      await saveSelectedSite({ deploy: deploySettings });
       const res = await apiFetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -584,6 +667,20 @@ export default function App() {
         <div className="sidebar-logo">
           <span>☄️</span> ZenithPress
         </div>
+        <div className="site-switcher">
+          <label>Website</label>
+          <select
+            value={selectedSiteId}
+            onChange={(e) => switchSite(e.target.value)}
+          >
+            {sites.map(site => (
+              <option key={site.id} value={site.id}>{site.name}</option>
+            ))}
+          </select>
+          <button type="button" onClick={() => { setActiveTab('sites'); setIsEditingPost(false); }}>
+            Manage Websites
+          </button>
+        </div>
         <ul className="sidebar-menu">
           <li
             className={`menu-item ${activeTab === 'dashboard' ? 'active' : ''}`}
@@ -615,6 +712,12 @@ export default function App() {
           >
             🚀 Publish & Deploy
           </li>
+          <li
+            className={`menu-item ${activeTab === 'sites' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('sites'); setIsEditingPost(false); }}
+          >
+            🗂️ Websites
+          </li>
         </ul>
         <div className="sidebar-footer">
           <div className="logout-btn" onClick={handleLogout}>
@@ -629,13 +732,96 @@ export default function App() {
         {/* Render Tab Views */}
         {!isEditingPost ? (
           <>
+            {/* Websites Tab */}
+            {activeTab === 'sites' && (
+              <div>
+                <div className="panel-header">
+                  <div className="panel-title">
+                    <h2>Websites</h2>
+                    <p>Select, create, and configure independent static sites.</p>
+                  </div>
+                </div>
+
+                <div className="websites-layout">
+                  <div className="brand-settings-card">
+                    <h3>🗂️ Website Workspaces</h3>
+                    <div className="site-list">
+                      {sites.map(site => (
+                        <button
+                          type="button"
+                          key={site.id}
+                          className={`site-list-item ${selectedSiteId === site.id ? 'active' : ''}`}
+                          onClick={() => switchSite(site.id)}
+                        >
+                          <span>
+                            <strong>{site.name}</strong>
+                            <small>{site.id} · {site.postCount || 0} posts</small>
+                          </span>
+                          <span>{selectedSiteId === site.id ? 'Selected' : 'Open'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="brand-settings-card">
+                    <h3>➕ New Website</h3>
+                    <div className="meta-input-group">
+                      <label>Website Name</label>
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={newSiteName}
+                        onChange={(e) => setNewSiteName(e.target.value)}
+                        placeholder="Portfolio, Lab Notes, Company Blog..."
+                      />
+                    </div>
+                    <button className="solid-btn" type="button" onClick={createSite}>
+                      Create Website
+                    </button>
+                  </div>
+
+                  <div className="brand-settings-card">
+                    <h3>⚙️ Selected Website</h3>
+                    <div className="meta-input-group">
+                      <label>Display Name</label>
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={selectedSite?.name || ''}
+                        onChange={(e) => {
+                          const nextName = e.target.value;
+                          setSites(prev => prev.map(site => (
+                            site.id === selectedSiteId ? { ...site, name: nextName } : site
+                          )));
+                        }}
+                        onBlur={() => saveSelectedSite({ name: selectedSite?.name || selectedSiteId })}
+                      />
+                    </div>
+                    <div className="site-detail-grid">
+                      <span>ID</span>
+                      <strong>{selectedSiteId}</strong>
+                      <span>Source</span>
+                      <strong>{selectedSiteId === MAIN_SITE_ID ? 'content/' : `sites/${selectedSiteId}/content/`}</strong>
+                      <span>Output</span>
+                      <strong>{selectedSiteId === MAIN_SITE_ID ? 'out/' : `sites/${selectedSiteId}/out/`}</strong>
+                      <span>Preview</span>
+                      <strong>{selectedSiteId === MAIN_SITE_ID ? '/' : `/preview/${selectedSiteId}/`}</strong>
+                    </div>
+                    <button className="text-btn" type="button" onClick={() => setActiveTab('publisher')}>
+                      Configure Deploy Target
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Dashboard Summary Tab */}
             {activeTab === 'dashboard' && (
               <div>
                 <div className="panel-header">
                   <div className="panel-title">
                     <h2>Administrative Overview</h2>
-                    <p>Track site status, posts database, and compile packages.</p>
+                    <p>Track {selectedSite?.name || 'selected website'} status, posts database, and compile packages.</p>
                   </div>
                   <button className="quick-action-btn" onClick={handleCompile}>
                     ☄️ Compile Static Site
@@ -667,14 +853,14 @@ export default function App() {
                   <div className="stat-card">
                     <div className="stat-icon green">🚀</div>
                     <div className="stat-info">
-                      <h3 style={{ fontSize: '1.1rem', color: '#4ade80' }}>Static (Git)</h3>
-                      <p>DB engine</p>
+                      <h3 style={{ fontSize: '1.1rem', color: '#4ade80' }}>{selectedSiteId}</h3>
+                      <p>Workspace</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Dashboard layout lower panel split */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '40px' }}>
+                <div className="dashboard-card-grid">
                   <div className="brand-settings-card">
                     <h3>📢 Live Public Site</h3>
                     <p style={{ color: 'var(--text-secondary)' }}>
@@ -1073,7 +1259,7 @@ export default function App() {
                       <div className="meta-input-group">
                         <label>Author Profile Picture (Avatar URL)</label>
                         <div className="avatar-preview-container">
-                          {settings.authorAvatar && <img src={settings.authorAvatar} className="avatar-preview" />}
+                          {settings.authorAvatar && <img src={resolveAdminAssetUrl(settings.authorAvatar)} className="avatar-preview" />}
                           <input
                             type="text"
                             className="meta-field"
@@ -1449,13 +1635,17 @@ export default function App() {
                 <div className="panel-header">
                   <div className="panel-title">
                     <h2>Publisher Center & Git Deployer</h2>
-                    <p>Compile static posts, review logs, and push output directly to GitHub.</p>
+                    <p>Compile and deploy {selectedSite?.name || 'the selected website'} to its own GitHub repository.</p>
                   </div>
                 </div>
 
                 <div className="publisher-layout">
                   <div className="brand-settings-card" style={{ height: 'fit-content' }}>
                     <h3 style={{ fontSize: '1.15rem' }}>⚙️ Deployment Variables</h3>
+                    <div className="site-publish-summary">
+                      <span>{selectedSite?.name || selectedSiteId}</span>
+                      <small>{selectedSiteId === MAIN_SITE_ID ? 'out/' : `sites/${selectedSiteId}/out/`}</small>
+                    </div>
 
                     <div className="meta-input-group" style={{ marginTop: '10px' }}>
                       <label>GitHub Remote Repository Target</label>
@@ -1499,6 +1689,16 @@ export default function App() {
                         disabled={isCompiling}
                       >
                         {isCompiling ? '🔧 Compiling HTML...' : '☄️ Run Static SSG Compile'}
+                      </button>
+                      <button
+                        className="text-btn"
+                        style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                        type="button"
+                        onClick={() => saveSelectedSite({ deploy: deploySettings })
+                          .then(() => logMsg('Deployment settings saved for selected website.'))
+                          .catch(err => logMsg(err.message || 'Failed to save deployment settings.', 'error'))}
+                      >
+                        Save Deploy Settings
                       </button>
                       <button
                         className="solid-btn"
@@ -1625,7 +1825,7 @@ export default function App() {
               <div className="meta-input-group">
                 <label>Cover Photo URL or Drop Upload</label>
                 <div className="avatar-preview-container">
-                  {editingPost.coverImage && <img src={editingPost.coverImage} className="avatar-preview" style={{ borderRadius: '8px' }} />}
+                  {editingPost.coverImage && <img src={resolveAdminAssetUrl(editingPost.coverImage)} className="avatar-preview" style={{ borderRadius: '8px' }} />}
                   <input
                     type="text"
                     className="meta-field"

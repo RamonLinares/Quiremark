@@ -6,6 +6,7 @@ dist/
 
 # Compiled static public blog output (deployed independently via gh-pages)
 out/
+sites/*/out/
 
 # System files
 .DS_Store

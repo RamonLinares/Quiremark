@@ -41,6 +41,11 @@ const DEFAULT_PUBLIC_FEATURES = {
 const DEFAULT_ANALYTICS_SETTINGS = {
   googleMeasurementId: ''
 };
+const DEFAULT_DEPLOY_SETTINGS = {
+  remoteUrl: '',
+  branch: 'gh-pages',
+  commitMessage: 'Publish: Static Pages Deploy'
+};
 const DEFAULT_CATEGORIES = [
   {
     slug: 'design',
@@ -637,6 +642,9 @@ const POSTS_DIR = path.join(CONTENT_DIR, 'posts');
 const IMAGES_DIR = path.join(CONTENT_DIR, 'images');
 const TEMPLATES_DIR = path.join(__dirname, 'templates');
 const OUT_DIR = path.join(__dirname, 'out');
+const SITES_DIR = path.join(__dirname, 'sites');
+const SITES_REGISTRY_FILE = path.join(SITES_DIR, 'registry.json');
+const MAIN_SITE_ID = 'main';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
 const COMMON_SEARCH_STYLE = path.join(TEMPLATES_DIR, 'search.css');
@@ -646,7 +654,7 @@ const COMMON_CONSENT_STYLE = path.join(TEMPLATES_DIR, 'consent.css');
 const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
 // Ensure necessary directories exist on startup
-[CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR].forEach(dir => {
+[CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR, SITES_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -658,6 +666,28 @@ const serveNoCache = (dir) => express.static(dir, {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+  }
+});
+
+app.use('/preview/:siteId', (req, res, next) => {
+  try {
+    const { record } = getSiteRecord(req.params.siteId);
+    const site = getSiteContext(record.id);
+    ensureSiteDirectories(site);
+    return serveNoCache(site.outDir)(req, res, next);
+  } catch (err) {
+    return res.status(err.statusCode || 404).send(err.message || 'Website preview not found.');
+  }
+});
+
+app.use('/site-assets/:siteId/content/images', (req, res, next) => {
+  try {
+    const { record } = getSiteRecord(req.params.siteId);
+    const site = getSiteContext(record.id);
+    ensureSiteDirectories(site);
+    return serveNoCache(site.imagesDir)(req, res, next);
+  } catch (err) {
+    return res.status(err.statusCode || 404).send(err.message || 'Website assets not found.');
   }
 });
 
@@ -676,10 +706,8 @@ app.get(['/favicon.svg', '/favicon.ico'], (req, res) => {
 
 
 
-// Setup initial settings if not present
-const SETTINGS_FILE = path.join(CONTENT_DIR, 'settings.json');
-if (!fs.existsSync(SETTINGS_FILE)) {
-  const defaultSettings = {
+function createDefaultSettings(overrides = {}) {
+  return {
     siteName: "Zenith Press",
     siteSubtitle: "Explorations in Design, Art & Technology",
     authorName: "Aara Dev",
@@ -711,9 +739,15 @@ if (!fs.existsSync(SETTINGS_FILE)) {
         placeholderText: "Enter your email...",
         actionUrl: ""
       }
-    ]
+    ],
+    ...overrides
   };
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf-8');
+}
+
+// Setup initial settings if not present
+const SETTINGS_FILE = path.join(CONTENT_DIR, 'settings.json');
+if (!fs.existsSync(SETTINGS_FILE)) {
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(createDefaultSettings(), null, 2), 'utf-8');
 }
 
 // ----------------------------------------------------
@@ -773,19 +807,153 @@ function resolveInside(baseDir, ...segments) {
   return targetPath;
 }
 
-function postFilePath(slug) {
-  assertValidSlug(slug);
-  return resolveInside(POSTS_DIR, `${slug}.md`);
+function normalizeSiteId(value) {
+  const siteId = slugify(String(value || '').trim()).slice(0, 40);
+  if (!siteId || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(siteId)) {
+    const err = new Error('Website ID must use lowercase letters, numbers, and hyphens.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return siteId;
 }
 
-function postOutputDir(slug) {
-  assertValidSlug(slug);
-  return resolveInside(path.join(OUT_DIR, 'posts'), slug);
+function normalizeSiteName(value, fallback = 'Untitled Website') {
+  return String(value || fallback).replace(/\0/g, '').trim().slice(0, 80) || fallback;
 }
 
-function categoryOutputDir(slug) {
+function normalizeDeploySettings(deploy = {}) {
+  return {
+    remoteUrl: deploy.remoteUrl ? validateRemoteUrl(deploy.remoteUrl) : '',
+    branch: deploy.branch ? validateBranch(deploy.branch) : DEFAULT_DEPLOY_SETTINGS.branch,
+    commitMessage: deploy.commitMessage
+      ? validateCommitMessage(deploy.commitMessage)
+      : DEFAULT_DEPLOY_SETTINGS.commitMessage
+  };
+}
+
+function getSiteContext(siteId = MAIN_SITE_ID) {
+  const id = normalizeSiteId(siteId || MAIN_SITE_ID);
+  if (id === MAIN_SITE_ID) {
+    return {
+      id,
+      baseDir: __dirname,
+      contentDir: CONTENT_DIR,
+      postsDir: POSTS_DIR,
+      imagesDir: IMAGES_DIR,
+      settingsFile: SETTINGS_FILE,
+      outDir: OUT_DIR
+    };
+  }
+  const baseDir = resolveInside(SITES_DIR, id);
+  const contentDir = resolveInside(baseDir, 'content');
+  return {
+    id,
+    baseDir,
+    contentDir,
+    postsDir: resolveInside(contentDir, 'posts'),
+    imagesDir: resolveInside(contentDir, 'images'),
+    settingsFile: resolveInside(contentDir, 'settings.json'),
+    outDir: resolveInside(baseDir, 'out')
+  };
+}
+
+function ensureSiteDirectories(site) {
+  [site.baseDir, site.contentDir, site.postsDir, site.imagesDir, site.outDir].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  });
+  if (!fs.existsSync(site.settingsFile)) {
+    fs.writeFileSync(site.settingsFile, JSON.stringify(createDefaultSettings(), null, 2), 'utf-8');
+  }
+}
+
+function normalizeSiteRecord(record = {}) {
+  const id = normalizeSiteId(record.id || MAIN_SITE_ID);
+  const deploy = normalizeDeploySettings(record.deploy || {});
+  return {
+    id,
+    name: normalizeSiteName(record.name, id === MAIN_SITE_ID ? 'Main Website' : id),
+    deploy,
+    createdAt: record.createdAt || new Date().toISOString(),
+    updatedAt: record.updatedAt || record.createdAt || new Date().toISOString()
+  };
+}
+
+function readSiteRegistry() {
+  let registry = null;
+  if (fs.existsSync(SITES_REGISTRY_FILE)) {
+    try {
+      registry = JSON.parse(fs.readFileSync(SITES_REGISTRY_FILE, 'utf-8'));
+    } catch {
+      registry = null;
+    }
+  }
+
+  const currentSettings = fs.existsSync(SETTINGS_FILE)
+    ? normalizeSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')))
+    : createDefaultSettings();
+  const records = Array.isArray(registry?.sites) ? registry.sites : [];
+  const siteMap = new Map(records.map(record => {
+    const normalized = normalizeSiteRecord(record);
+    return [normalized.id, normalized];
+  }));
+
+  if (!siteMap.has(MAIN_SITE_ID)) {
+    siteMap.set(MAIN_SITE_ID, normalizeSiteRecord({
+      id: MAIN_SITE_ID,
+      name: currentSettings.siteName || 'Main Website'
+    }));
+  }
+
+  const activeSiteId = siteMap.has(registry?.activeSiteId)
+    ? registry.activeSiteId
+    : MAIN_SITE_ID;
+
+  const normalizedRegistry = {
+    activeSiteId,
+    sites: [...siteMap.values()]
+  };
+  writeSiteRegistry(normalizedRegistry);
+  return normalizedRegistry;
+}
+
+function writeSiteRegistry(registry) {
+  if (!fs.existsSync(SITES_DIR)) fs.mkdirSync(SITES_DIR, { recursive: true });
+  fs.writeFileSync(SITES_REGISTRY_FILE, JSON.stringify(registry, null, 2), 'utf-8');
+}
+
+function getSiteRecord(siteId) {
+  const id = normalizeSiteId(siteId || MAIN_SITE_ID);
+  const registry = readSiteRegistry();
+  const record = registry.sites.find(site => site.id === id);
+  if (!record) {
+    const err = new Error(`Website "${id}" was not found.`);
+    err.statusCode = 404;
+    throw err;
+  }
+  return { registry, record };
+}
+
+function getSiteContextFromRequest(req) {
+  const requestedId = req.get('X-Zenith-Site') || req.query.site || readSiteRegistry().activeSiteId;
+  const { record } = getSiteRecord(requestedId);
+  const context = getSiteContext(record.id);
+  ensureSiteDirectories(context);
+  return { ...context, record };
+}
+
+function postFilePath(site, slug) {
   assertValidSlug(slug);
-  return resolveInside(path.join(OUT_DIR, 'categories'), slug);
+  return resolveInside(site.postsDir, `${slug}.md`);
+}
+
+function postOutputDir(site, slug) {
+  assertValidSlug(slug);
+  return resolveInside(path.join(site.outDir, 'posts'), slug);
+}
+
+function categoryOutputDir(site, slug) {
+  assertValidSlug(slug);
+  return resolveInside(path.join(site.outDir, 'categories'), slug);
 }
 
 function normalizeTags(tags) {
@@ -1970,8 +2138,9 @@ function normalizeSettings(settings = {}) {
   };
 }
 
-function readSettings() {
-  return normalizeSettings(JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8')));
+function readSettings(site = getSiteContext(MAIN_SITE_ID)) {
+  ensureSiteDirectories(site);
+  return normalizeSettings(JSON.parse(fs.readFileSync(site.settingsFile, 'utf-8')));
 }
 
 function normalizePost(attributes = {}, body = '', fileName = '', categories = DEFAULT_CATEGORIES) {
@@ -2034,13 +2203,14 @@ function serializePostMarkdown(post) {
 }
 
 // Read and parse all posts
-function getAllPosts(includeDrafts = true, settings = readSettings()) {
-  if (!fs.existsSync(POSTS_DIR)) return [];
-  const files = fs.readdirSync(POSTS_DIR);
+function getAllPosts(site = getSiteContext(MAIN_SITE_ID), includeDrafts = true, settings = readSettings(site)) {
+  ensureSiteDirectories(site);
+  if (!fs.existsSync(site.postsDir)) return [];
+  const files = fs.readdirSync(site.postsDir);
   const posts = files
     .filter(file => file.endsWith('.md'))
     .map(file => {
-      const filePath = path.join(POSTS_DIR, file);
+      const filePath = path.join(site.postsDir, file);
       const content = fs.readFileSync(filePath, 'utf-8');
       const stats = fs.statSync(filePath);
       const parsed = fm(content);
@@ -2151,48 +2321,141 @@ app.post('/api/auth/login', (req, res) => {
 
 app.use('/api', requireAuth);
 
+// Fetch configured websites
+app.get('/api/sites', (req, res) => {
+  try {
+    const registry = readSiteRegistry();
+    const sites = registry.sites.map(site => {
+      const context = getSiteContext(site.id);
+      ensureSiteDirectories(context);
+      const settings = readSettings(context);
+      const postCount = getAllPosts(context, true, settings).length;
+      return {
+        ...site,
+        siteName: settings.siteName,
+        postCount,
+        previewUrl: site.id === MAIN_SITE_ID ? '/' : `/preview/${site.id}/`
+      };
+    });
+    res.json({ activeSiteId: registry.activeSiteId, sites });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to read websites.' });
+  }
+});
+
+// Create a new website workspace
+app.post('/api/sites', (req, res) => {
+  try {
+    const name = normalizeSiteName(req.body.name, 'New Website');
+    const id = normalizeSiteId(req.body.id || name);
+    if (id === MAIN_SITE_ID) {
+      return res.status(400).json({ error: 'The main website already exists.' });
+    }
+
+    const registry = readSiteRegistry();
+    if (registry.sites.some(site => site.id === id)) {
+      return res.status(400).json({ error: 'A website with this ID already exists.' });
+    }
+
+    const now = new Date().toISOString();
+    const siteRecord = normalizeSiteRecord({
+      id,
+      name,
+      deploy: req.body.deploy || {},
+      createdAt: now,
+      updatedAt: now
+    });
+    const context = getSiteContext(id);
+    ensureSiteDirectories(context);
+    const settings = createDefaultSettings({
+      siteName: name,
+      siteSubtitle: '',
+      authorName: '',
+      authorBio: '',
+      siteUrl: ''
+    });
+    fs.writeFileSync(context.settingsFile, JSON.stringify(normalizeSettings(settings), null, 2), 'utf-8');
+
+    registry.sites.push(siteRecord);
+    registry.activeSiteId = id;
+    writeSiteRegistry(registry);
+    res.json({ success: true, site: siteRecord });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to create website.' });
+  }
+});
+
+// Update website metadata and deployment defaults
+app.put('/api/sites/:siteId', (req, res) => {
+  try {
+    const id = normalizeSiteId(req.params.siteId);
+    const registry = readSiteRegistry();
+    const siteIndex = registry.sites.findIndex(site => site.id === id);
+    if (siteIndex === -1) {
+      return res.status(404).json({ error: 'Website not found.' });
+    }
+    const existing = registry.sites[siteIndex];
+    const updated = normalizeSiteRecord({
+      ...existing,
+      name: req.body.name === undefined ? existing.name : req.body.name,
+      deploy: req.body.deploy === undefined ? existing.deploy : req.body.deploy,
+      updatedAt: new Date().toISOString()
+    });
+    registry.sites[siteIndex] = updated;
+    registry.activeSiteId = req.body.makeActive === false ? registry.activeSiteId : id;
+    writeSiteRegistry(registry);
+    res.json({ success: true, site: updated });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to update website.' });
+  }
+});
+
 // Fetch settings
 app.get('/api/settings', (req, res) => {
   try {
-    res.json(readSettings());
+    const site = getSiteContextFromRequest(req);
+    res.json(readSettings(site));
   } catch (err) {
-    res.status(500).json({ error: 'Failed to read settings configuration.' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to read settings configuration.' });
   }
 });
 
 // Update settings
 app.post('/api/settings', (req, res) => {
   try {
+    const site = getSiteContextFromRequest(req);
     const settings = normalizeSettings(req.body);
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+    fs.writeFileSync(site.settingsFile, JSON.stringify(settings, null, 2), 'utf-8');
     res.json({ success: true, message: 'Settings saved successfully.', settings });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to write settings configuration.' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to write settings configuration.' });
   }
 });
 
 // Fetch all posts (for admin view)
 app.get('/api/posts', (req, res) => {
   try {
-    const settings = readSettings();
-    const posts = getAllPosts(true, settings);
+    const site = getSiteContextFromRequest(req);
+    const settings = readSettings(site);
+    const posts = getAllPosts(site, true, settings);
     res.json(posts);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch posts.' });
+    res.status(err.statusCode || 500).json({ error: err.message || 'Failed to fetch posts.' });
   }
 });
 
 // Fetch a single post
 app.get('/api/posts/:slug', (req, res) => {
   try {
+    const site = getSiteContextFromRequest(req);
     const { slug } = req.params;
-    const filePath = postFilePath(slug);
+    const filePath = postFilePath(site, slug);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Post not found.' });
     }
     const content = fs.readFileSync(filePath, 'utf-8');
     const parsed = fm(content);
-    const settings = readSettings();
+    const settings = readSettings(site);
     const post = decoratePostCategory(normalizePost(parsed.attributes, parsed.body, `${slug}.md`, settings.categories), settings.categories);
     res.json({
       meta: { ...post, content: undefined },
@@ -2206,8 +2469,10 @@ app.get('/api/posts/:slug', (req, res) => {
 // Create new post
 app.post('/api/posts', (req, res) => {
   try {
-    const post = normalizePostPayload(req.body);
-    const filePath = postFilePath(post.slug);
+    const site = getSiteContextFromRequest(req);
+    const settings = readSettings(site);
+    const post = normalizePostPayload(req.body, settings);
+    const filePath = postFilePath(site, post.slug);
     if (fs.existsSync(filePath)) {
       return res.status(400).json({ error: 'A post with this slug already exists.' });
     }
@@ -2222,11 +2487,13 @@ app.post('/api/posts', (req, res) => {
 // Update post
 app.put('/api/posts/:slug', (req, res) => {
   try {
+    const site = getSiteContextFromRequest(req);
+    const settings = readSettings(site);
     const oldSlug = req.params.slug;
     assertValidSlug(oldSlug);
-    const post = normalizePostPayload(req.body);
-    const oldFilePath = postFilePath(oldSlug);
-    const newFilePath = postFilePath(post.slug);
+    const post = normalizePostPayload(req.body, settings);
+    const oldFilePath = postFilePath(site, oldSlug);
+    const newFilePath = postFilePath(site, post.slug);
 
     if (!fs.existsSync(oldFilePath)) {
       return res.status(404).json({ error: 'Original post not found.' });
@@ -2252,8 +2519,9 @@ app.put('/api/posts/:slug', (req, res) => {
 // Delete post
 app.delete('/api/posts/:slug', (req, res) => {
   try {
+    const site = getSiteContextFromRequest(req);
     const { slug } = req.params;
-    const filePath = postFilePath(slug);
+    const filePath = postFilePath(site, slug);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Post not found.' });
     }
@@ -2267,6 +2535,7 @@ app.delete('/api/posts/:slug', (req, res) => {
 // Base64 Image Upload
 app.post('/api/images/upload', (req, res) => {
   try {
+    const site = getSiteContextFromRequest(req);
     const { filename, base64Data } = req.body;
     if (!filename || !base64Data) {
       return res.status(400).json({ error: 'Missing filename or image data.' });
@@ -2281,7 +2550,7 @@ app.post('/api/images/upload', (req, res) => {
       return res.status(400).json({ error: 'Unsupported image file type.' });
     }
     const uniqueName = `image_${Date.now()}${ext}`;
-    const targetPath = resolveInside(IMAGES_DIR, uniqueName);
+    const targetPath = resolveInside(site.imagesDir, uniqueName);
     
     fs.writeFileSync(targetPath, buffer);
     
@@ -2303,10 +2572,12 @@ app.post('/api/publish', async (req, res) => {
   const logMsg = (msg) => { log.push(`[SSG] ${msg}`); console.log(`[SSG] ${msg}`); };
 
   try {
+    const site = getSiteContextFromRequest(req);
     logMsg("Starting static compilation pipeline...");
+    logMsg(`Website workspace: "${site.record.name}" (${site.id}).`);
 
     // 1. Read settings and verified templates
-    const settings = readSettings();
+    const settings = readSettings(site);
     const templateName = settings.selectedTemplate || 'nordic-minimal';
     const activeTemplateDir = resolveInside(TEMPLATES_DIR, templateName);
     
@@ -2317,22 +2588,22 @@ app.post('/api/publish', async (req, res) => {
     }
 
     // 2. Refresh output folder
-    if (fs.existsSync(OUT_DIR)) {
+    if (fs.existsSync(site.outDir)) {
       // Clear out older files, keeping .git if present to maintain history
-      const files = fs.readdirSync(OUT_DIR);
+      const files = fs.readdirSync(site.outDir);
       files.forEach(f => {
         if (f !== '.git') {
-          fs.rmSync(path.join(OUT_DIR, f), { recursive: true, force: true });
+          fs.rmSync(path.join(site.outDir, f), { recursive: true, force: true });
         }
       });
-      logMsg("Output directory out/ cleaned.");
+      logMsg(`Output directory ${path.relative(__dirname, site.outDir) || 'out'} cleaned.`);
     } else {
-      fs.mkdirSync(OUT_DIR, { recursive: true });
-      logMsg("Created output directory out/");
+      fs.mkdirSync(site.outDir, { recursive: true });
+      logMsg(`Created output directory ${path.relative(__dirname, site.outDir) || 'out'}.`);
     }
 
     // 3. Read posts (excl drafts for compilation)
-    const posts = getAllPosts(false, settings);
+    const posts = getAllPosts(site, false, settings);
     logMsg(`Found ${posts.length} published posts to compile.`);
 
     // 4. Render markdown content for each post
@@ -2389,19 +2660,19 @@ app.post('/api/publish', async (req, res) => {
     };
 
     const homeHtml = renderTemplate(indexTemplate, homepageData, `${templateName}/index.ejs`);
-    fs.writeFileSync(path.join(OUT_DIR, 'index.html'), homeHtml, 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'index.html'), homeHtml, 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'index.html.md'), createHomeMarkdown(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
     logMsg("Home page successfully written.");
 
     // 7. Build individual post pages under out/posts/[slug]/index.html for clean URLs
-    const postsOutDir = path.join(OUT_DIR, 'posts');
+    const postsOutDir = path.join(site.outDir, 'posts');
     if (!fs.existsSync(postsOutDir)) {
       fs.mkdirSync(postsOutDir, { recursive: true });
     }
 
     for (const post of compiledPosts) {
       logMsg(`Compiling article page: "/posts/${post.slug}"...`);
-      const singlePostDir = postOutputDir(post.slug);
+      const singlePostDir = postOutputDir(site, post.slug);
       if (!fs.existsSync(singlePostDir)) {
         fs.mkdirSync(singlePostDir, { recursive: true });
       }
@@ -2437,12 +2708,12 @@ app.post('/api/publish', async (req, res) => {
     logMsg(`All ${compiledPosts.length} posts compiled successfully.`);
 
     if (settings.features.categories) {
-      const categoriesOutDir = path.join(OUT_DIR, 'categories');
+      const categoriesOutDir = path.join(site.outDir, 'categories');
       fs.mkdirSync(categoriesOutDir, { recursive: true });
       for (const category of categorySummaries) {
         const categoryPosts = compiledPosts.filter(post => post.categorySlug === category.slug);
         logMsg(`Compiling category archive: "/categories/${category.slug}" (${categoryPosts.length} posts)...`);
-        const singleCategoryDir = categoryOutputDir(category.slug);
+        const singleCategoryDir = categoryOutputDir(site, category.slug);
         fs.mkdirSync(singleCategoryDir, { recursive: true });
         const categoryVariables = createDynamicVariables(settings, categoryPosts, null, publishNow, category, categorySummaries);
         const categoryText = resolveSettingsText(settings, categoryVariables);
@@ -2479,38 +2750,38 @@ app.post('/api/publish', async (req, res) => {
     // 8. Copy active template stylesheets and client assets
     const styleSrc = path.join(activeTemplateDir, 'style.css');
     if (fs.existsSync(styleSrc)) {
-      fs.copyFileSync(styleSrc, path.join(OUT_DIR, 'style.css'));
+      fs.copyFileSync(styleSrc, path.join(site.outDir, 'style.css'));
       logMsg("Copied template stylesheet (style.css).");
     }
 
     const scriptSrc = path.join(activeTemplateDir, 'script.js');
     if (fs.existsSync(scriptSrc)) {
-      fs.copyFileSync(scriptSrc, path.join(OUT_DIR, 'script.js'));
+      fs.copyFileSync(scriptSrc, path.join(site.outDir, 'script.js'));
       logMsg("Copied template script asset (script.js).");
     }
 
     if (settings.features.search && fs.existsSync(COMMON_SEARCH_SCRIPT)) {
-      fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(OUT_DIR, 'search.js'));
+      fs.copyFileSync(COMMON_SEARCH_SCRIPT, path.join(site.outDir, 'search.js'));
       logMsg("Copied shared search script (search.js).");
     }
 
     if (settings.features.search && fs.existsSync(COMMON_SEARCH_STYLE)) {
-      fs.copyFileSync(COMMON_SEARCH_STYLE, path.join(OUT_DIR, 'search.css'));
+      fs.copyFileSync(COMMON_SEARCH_STYLE, path.join(site.outDir, 'search.css'));
       logMsg("Copied shared search stylesheet (search.css).");
     }
 
     if (settings.features.categories && fs.existsSync(COMMON_TAXONOMY_STYLE)) {
-      fs.copyFileSync(COMMON_TAXONOMY_STYLE, path.join(OUT_DIR, 'taxonomy.css'));
+      fs.copyFileSync(COMMON_TAXONOMY_STYLE, path.join(site.outDir, 'taxonomy.css'));
       logMsg("Copied shared taxonomy stylesheet (taxonomy.css).");
     }
 
     if (isAnalyticsConfigured(settings)) {
       if (fs.existsSync(COMMON_CONSENT_SCRIPT)) {
-        fs.copyFileSync(COMMON_CONSENT_SCRIPT, path.join(OUT_DIR, 'consent.js'));
+        fs.copyFileSync(COMMON_CONSENT_SCRIPT, path.join(site.outDir, 'consent.js'));
         logMsg("Copied analytics consent script (consent.js).");
       }
       if (fs.existsSync(COMMON_CONSENT_STYLE)) {
-        fs.copyFileSync(COMMON_CONSENT_STYLE, path.join(OUT_DIR, 'consent.css'));
+        fs.copyFileSync(COMMON_CONSENT_STYLE, path.join(site.outDir, 'consent.css'));
         logMsg("Copied analytics consent stylesheet (consent.css).");
       }
     } else {
@@ -2518,17 +2789,17 @@ app.post('/api/publish', async (req, res) => {
     }
 
     if (fs.existsSync(FAVICON_SOURCE)) {
-      fs.copyFileSync(FAVICON_SOURCE, path.join(OUT_DIR, 'favicon.svg'));
+      fs.copyFileSync(FAVICON_SOURCE, path.join(site.outDir, 'favicon.svg'));
       logMsg("Copied favicon asset (favicon.svg).");
     }
 
     // 9. Copy uploaded images
-    const imagesOutDir = path.join(OUT_DIR, 'content', 'images');
-    if (fs.existsSync(IMAGES_DIR)) {
+    const imagesOutDir = path.join(site.outDir, 'content', 'images');
+    if (fs.existsSync(site.imagesDir)) {
       fs.mkdirSync(imagesOutDir, { recursive: true });
-      const imageFiles = fs.readdirSync(IMAGES_DIR);
+      const imageFiles = fs.readdirSync(site.imagesDir);
       imageFiles.forEach(file => {
-        fs.copyFileSync(path.join(IMAGES_DIR, file), path.join(imagesOutDir, file));
+        fs.copyFileSync(path.join(site.imagesDir, file), path.join(imagesOutDir, file));
       });
       logMsg(`Copied ${imageFiles.length} uploaded images to static assets.`);
     }
@@ -2552,22 +2823,22 @@ app.post('/api/publish', async (req, res) => {
         wordCount: p.wordCount,
         tags: p.tags
       }));
-      fs.writeFileSync(path.join(OUT_DIR, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');
+      fs.writeFileSync(path.join(site.outDir, 'search.json'), JSON.stringify(searchIndex, null, 2), 'utf-8');
       logMsg("Search database written.");
     } else {
       logMsg("Search feature disabled; skipped search assets and index.");
     }
 
-    fs.writeFileSync(path.join(OUT_DIR, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, categorySummaries, publishNow), 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'sitemap.xml'), createSitemapXml(settings, compiledPosts, categorySummaries, publishNow), 'utf-8');
     if (settings.features.rss) {
-      fs.writeFileSync(path.join(OUT_DIR, 'feed.xml'), createRssFeedXml(settings, homepageText, compiledPosts, publishNow), 'utf-8');
+      fs.writeFileSync(path.join(site.outDir, 'feed.xml'), createRssFeedXml(settings, homepageText, compiledPosts, publishNow), 'utf-8');
       logMsg("RSS feed written (feed.xml).");
     } else {
       logMsg("RSS feed disabled; skipped feed.xml.");
     }
-    fs.writeFileSync(path.join(OUT_DIR, 'robots.txt'), createRobotsTxt(settings), 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
-    fs.writeFileSync(path.join(OUT_DIR, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'robots.txt'), createRobotsTxt(settings), 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'llms.txt'), createLlmsTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
+    fs.writeFileSync(path.join(site.outDir, 'llms-full.txt'), createLlmsFullTxt(settings, homepageText, compiledPosts, categorySummaries), 'utf-8');
     logMsg("Discovery files written (sitemap.xml, robots.txt, llms.txt).");
 
     logMsg("Static compilation process finished successfully!");
@@ -2582,58 +2853,77 @@ app.post('/api/publish', async (req, res) => {
 // GIT DEPLOYMENT CONTROLLER
 // ----------------------------------------------------
 app.post('/api/deploy', async (req, res) => {
-  const { remoteUrl, branch = 'gh-pages', commitMessage = 'Publish: Static Pages Deploy' } = req.body;
   const log = [];
   const logMsg = (msg) => { log.push(`[DEPLOY] ${msg}`); console.log(`[DEPLOY] ${msg}`); };
 
   try {
-    const safeRemoteUrl = validateRemoteUrl(remoteUrl);
-    const safeBranch = validateBranch(branch);
-    const safeCommitMessage = validateCommitMessage(commitMessage);
-    logMsg(`Starting Git Deployment pipeline for branch "${safeBranch}"...`);
+    const site = getSiteContextFromRequest(req);
+    const deployInput = {
+      ...site.record.deploy,
+      ...req.body
+    };
+    const safeRemoteUrl = validateRemoteUrl(deployInput.remoteUrl);
+    const safeBranch = validateBranch(deployInput.branch || DEFAULT_DEPLOY_SETTINGS.branch);
+    const safeCommitMessage = validateCommitMessage(deployInput.commitMessage || DEFAULT_DEPLOY_SETTINGS.commitMessage);
+    const registryUpdate = readSiteRegistry();
+    const siteIndex = registryUpdate.sites.findIndex(record => record.id === site.id);
+    if (siteIndex !== -1) {
+      registryUpdate.sites[siteIndex] = {
+        ...registryUpdate.sites[siteIndex],
+        deploy: {
+          remoteUrl: safeRemoteUrl,
+          branch: safeBranch,
+          commitMessage: safeCommitMessage
+        },
+        updatedAt: new Date().toISOString()
+      };
+      registryUpdate.activeSiteId = site.id;
+      writeSiteRegistry(registryUpdate);
+    }
+    logMsg(`Starting Git Deployment pipeline for "${site.record.name}" on branch "${safeBranch}"...`);
 
     // Ensure out directory exists
-    if (!fs.existsSync(OUT_DIR) || fs.readdirSync(OUT_DIR).length <= 1) {
+    if (!fs.existsSync(site.outDir) || fs.readdirSync(site.outDir).length <= 1) {
       throw new Error("No static files compiled yet. Run static compilation first.");
     }
 
     // Check if Git is initialized in out/
-    const isGitRepo = fs.existsSync(path.join(OUT_DIR, '.git'));
+    const isGitRepo = fs.existsSync(path.join(site.outDir, '.git'));
     if (!isGitRepo) {
-      logMsg("Initializing new local Git workspace inside /out...");
-      await runCommand('git', ['init'], OUT_DIR);
-      await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], OUT_DIR);
+      logMsg(`Initializing new local Git workspace inside ${path.relative(__dirname, site.outDir) || 'out'}...`);
+      await runCommand('git', ['init'], site.outDir);
+      await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], site.outDir);
       logMsg("Workspace successfully initialized with remote target.");
     } else {
       // Update remote just in case it changed
       try {
-        await runCommand('git', ['remote', 'set-url', 'origin', safeRemoteUrl], OUT_DIR);
+        await runCommand('git', ['remote', 'set-url', 'origin', safeRemoteUrl], site.outDir);
       } catch (err) {
         // If set-url fails because origin doesn't exist
-        await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], OUT_DIR);
+        await runCommand('git', ['remote', 'add', 'origin', safeRemoteUrl], site.outDir);
       }
     }
 
     // Configure credentials locally inside the subfolder so we don't interfere with global configs
     logMsg("Configuring local directory git targets...");
-    await runCommand('git', ['config', 'user.name', 'ZenithPress Compiler'], OUT_DIR);
-    await runCommand('git', ['config', 'user.email', 'compiler@zenithpress.local'], OUT_DIR);
+    await runCommand('git', ['config', 'user.name', 'ZenithPress Compiler'], site.outDir);
+    await runCommand('git', ['config', 'user.email', 'compiler@zenithpress.local'], site.outDir);
 
     // Checkout deployment branch
     try {
       logMsg(`Checking out branch: "${safeBranch}"...`);
-      await runCommand('git', ['checkout', '-B', safeBranch], OUT_DIR);
+      await runCommand('git', ['checkout', '-B', safeBranch], site.outDir);
     } catch (err) {
       // If branch checkout fails, create it
-      await runCommand('git', ['checkout', '-b', safeBranch], OUT_DIR);
+      await runCommand('git', ['checkout', '-b', safeBranch], site.outDir);
     }
 
     // Add and commit files
     logMsg("Staging files...");
-    await runCommand('git', ['add', '.'], OUT_DIR);
+    await runCommand('git', ['add', '.'], site.outDir);
 
     // Check git status to see if anything changed
-    const status = await runCommand('git', ['status', '--porcelain'], OUT_DIR);
+    const status = await runCommand('git', ['status', '--porcelain'], site.outDir);
     if (!status.trim()) {
       logMsg("No changes detected since last publication.");
       return res.json({ success: true, message: "Static pages are already up-to-date.", log });
@@ -2642,12 +2932,12 @@ app.post('/api/deploy', async (req, res) => {
     logMsg(`Committing updates: "${safeCommitMessage}"...`);
     const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const finalMsg = `${safeCommitMessage} (${dateStr})`;
-    await runCommand('git', ['commit', '-m', finalMsg], OUT_DIR);
+    await runCommand('git', ['commit', '-m', finalMsg], site.outDir);
 
     // Push to GitHub
     logMsg(`Pushing assets to origin/${safeBranch}...`);
     // Using --force to guarantee hosting files replace whatever is currently in gh-pages
-    await runCommand('git', ['push', 'origin', safeBranch, '--force'], OUT_DIR);
+    await runCommand('git', ['push', 'origin', safeBranch, '--force'], site.outDir);
 
     logMsg("Pushed to GitHub Pages successfully!");
     res.json({ success: true, log });
