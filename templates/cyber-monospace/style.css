@@ -355,6 +355,14 @@ a:hover {
 .post-content {
   font-size: 0.95rem;
   line-height: 1.7;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border-color);
 }
 
 .post-content p {
@@ -498,7 +506,8 @@ a:hover {
 
 /* Responsiveness */
 @media (max-width: 900px) {
-  .main-layout {
+  .main-layout,
+  .single-post-layout {
     grid-template-columns: 1fr;
     gap: 20px;
   }
