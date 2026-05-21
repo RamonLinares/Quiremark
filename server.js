@@ -38,6 +38,9 @@ const DEFAULT_PUBLIC_FEATURES = {
   rss: true,
   categories: true
 };
+const DEFAULT_ANALYTICS_SETTINGS = {
+  googleMeasurementId: ''
+};
 const DEFAULT_CATEGORIES = [
   {
     slug: 'design',
@@ -122,7 +125,8 @@ const REQUIRED_TEMPLATE_HELPERS = [
   'longDate',
   'categoryLink',
   'categoryNav',
-  'categoryArchiveHeader'
+  'categoryArchiveHeader',
+  'consentDialog'
 ];
 const TRANSLATIONS = {
   es: {
@@ -201,6 +205,12 @@ const TRANSLATIONS = {
     'Categories': 'Categorías',
     'All Posts': 'Todas las publicaciones',
     'Category Archive': 'Archivo de categoría',
+    'Privacy preferences': 'Preferencias de privacidad',
+    'Analytics preferences': 'Preferencias de analítica',
+    'We use Google Analytics in a privacy-first mode to understand aggregate traffic, popular links, and page performance.': 'Usamos Google Analytics en un modo orientado a la privacidad para entender el tráfico agregado, los enlaces populares y el rendimiento de la página.',
+    'Reject optional keeps the site fully functional without analytics cookies. Google may still receive cookieless, aggregate measurement signals. You can change this later from Privacy preferences.': 'Rechazar lo opcional mantiene el sitio totalmente funcional sin cookies de analítica. Google puede seguir recibiendo señales agregadas de medición sin cookies. Puedes cambiarlo más tarde desde Preferencias de privacidad.',
+    'Reject optional': 'Rechazar opcional',
+    'Accept optional': 'Aceptar opcional',
     'Inner Circle Newsletter': 'Boletín del círculo interno',
     'Custom HTML Block': 'Bloque HTML personalizado',
     'Enter your email...': 'Introduce tu correo...',
@@ -282,6 +292,12 @@ const TRANSLATIONS = {
     'Categories': 'Categories',
     'All Posts': 'Totes les publicacions',
     'Category Archive': 'Arxiu de categoria',
+    'Privacy preferences': 'Preferències de privadesa',
+    'Analytics preferences': 'Preferències d’analítica',
+    'We use Google Analytics in a privacy-first mode to understand aggregate traffic, popular links, and page performance.': 'Fem servir Google Analytics en un mode orientat a la privadesa per entendre el trànsit agregat, els enllaços populars i el rendiment de la pàgina.',
+    'Reject optional keeps the site fully functional without analytics cookies. Google may still receive cookieless, aggregate measurement signals. You can change this later from Privacy preferences.': 'Rebutjar l’opcional manté el lloc completament funcional sense galetes d’analítica. Google encara pot rebre senyals agregats de mesura sense galetes. Ho pots canviar més endavant des de Preferències de privadesa.',
+    'Reject optional': 'Rebutja l’opcional',
+    'Accept optional': 'Accepta l’opcional',
     'Inner Circle Newsletter': 'Butlletí del cercle intern',
     'Custom HTML Block': 'Bloc HTML personalitzat',
     'Enter your email...': 'Introdueix el teu correu...',
@@ -363,6 +379,12 @@ const TRANSLATIONS = {
     'Categories': '分类',
     'All Posts': '所有文章',
     'Category Archive': '分类归档',
+    'Privacy preferences': '隐私偏好',
+    'Analytics preferences': '分析偏好',
+    'We use Google Analytics in a privacy-first mode to understand aggregate traffic, popular links, and page performance.': '我们以注重隐私的方式使用 Google Analytics，用于了解汇总流量、热门链接和页面性能。',
+    'Reject optional keeps the site fully functional without analytics cookies. Google may still receive cookieless, aggregate measurement signals. You can change this later from Privacy preferences.': '拒绝可选项后，网站仍可完整运行且不会使用分析 Cookie。Google 仍可能收到无 Cookie 的汇总测量信号。你之后可以在隐私偏好中更改此设置。',
+    'Reject optional': '拒绝可选项',
+    'Accept optional': '接受可选项',
     'Inner Circle Newsletter': '内圈通讯',
     'Custom HTML Block': '自定义 HTML 区块',
     'Enter your email...': '输入你的邮箱...',
@@ -619,6 +641,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const COMMON_SEARCH_SCRIPT = path.join(TEMPLATES_DIR, 'search.js');
 const COMMON_SEARCH_STYLE = path.join(TEMPLATES_DIR, 'search.css');
 const COMMON_TAXONOMY_STYLE = path.join(TEMPLATES_DIR, 'taxonomy.css');
+const COMMON_CONSENT_SCRIPT = path.join(TEMPLATES_DIR, 'consent.js');
+const COMMON_CONSENT_STYLE = path.join(TEMPLATES_DIR, 'consent.css');
 const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
 // Ensure necessary directories exist on startup
@@ -671,6 +695,7 @@ if (!fs.existsSync(SETTINGS_FILE)) {
     locale: DEFAULT_LOCALE,
     features: { ...DEFAULT_PUBLIC_FEATURES },
     categories: DEFAULT_CATEGORIES,
+    analytics: { ...DEFAULT_ANALYTICS_SETTINGS },
     themeText: normalizeThemeText(),
     widgets: [
       { id: "bio", name: "About Me", type: "bio", enabled: true, position: "sidebar", order: 1 },
@@ -799,6 +824,21 @@ function normalizePublicUrl(value, options = {}) {
   } catch {
     return '';
   }
+}
+
+function normalizeGoogleMeasurementId(value) {
+  const measurementId = String(value || '').trim().toUpperCase();
+  return measurementId.length <= 32 && /^G-[A-Z0-9]+$/.test(measurementId) ? measurementId : '';
+}
+
+function normalizeAnalyticsSettings(analytics = {}) {
+  return {
+    googleMeasurementId: normalizeGoogleMeasurementId(analytics.googleMeasurementId || analytics.measurementId)
+  };
+}
+
+function isAnalyticsConfigured(settings) {
+  return Boolean(settings.analytics?.googleMeasurementId);
 }
 
 function normalizeKeywordList(value) {
@@ -1710,9 +1750,11 @@ function renderSeoHead(pageMeta = {}) {
     metaTag('robots', pageMeta.robots),
     metaTag('generator', 'ZenithPress'),
     metaTag('keywords', (pageMeta.keywords || []).join(', ')),
+    metaTag('google-analytics-id', pageMeta.googleAnalyticsId),
     pageMeta.canonicalUrl ? `<link rel="canonical" href="${escapeHtml(pageMeta.canonicalUrl)}">` : '',
     pageMeta.markdownUrl ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(pageMeta.markdownUrl)}">` : '',
     pageMeta.feedUrl ? `<link rel="alternate" type="application/rss+xml" title="${escapeHtml(pageMeta.feedTitle || `${pageMeta.siteName || 'ZenithPress'} RSS Feed`)}" href="${escapeHtml(pageMeta.feedUrl)}">` : '',
+    pageMeta.googleAnalyticsId ? '<link rel="stylesheet" href="/consent.css">' : '',
     propertyTag('og:type', pageMeta.type === 'article' ? 'article' : 'website'),
     propertyTag('og:title', pageMeta.title),
     propertyTag('og:description', pageMeta.description),
@@ -1793,6 +1835,29 @@ function renderCategoryArchiveHeader(settings, currentCategory = null) {
   ].filter(Boolean).join('\n');
 }
 
+function renderConsentDialog(settings) {
+  if (!isAnalyticsConfigured(settings)) return '';
+  const titleId = 'analytics-consent-title';
+  return [
+    '<button class="consent-preferences-button" type="button" data-open-consent hidden>',
+    `  ${escapeHtml(translateText('Privacy preferences', settings.locale))}`,
+    '</button>',
+    '<div class="consent-backdrop" data-consent-backdrop hidden></div>',
+    '<section class="consent-modal" data-consent-modal role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="analytics-consent-title" hidden>',
+    '  <div class="consent-modal__panel">',
+    `    <h2 id="${titleId}">${escapeHtml(translateText('Analytics preferences', settings.locale))}</h2>`,
+    `    <p class="consent-modal__copy">${escapeHtml(translateText('We use Google Analytics in a privacy-first mode to understand aggregate traffic, popular links, and page performance.', settings.locale))}</p>`,
+    `    <p class="consent-modal__note">${escapeHtml(translateText('Reject optional keeps the site fully functional without analytics cookies. Google may still receive cookieless, aggregate measurement signals. You can change this later from Privacy preferences.', settings.locale))}</p>`,
+    '    <div class="consent-modal__actions">',
+    `      <button class="consent-button consent-button--ghost" type="button" data-consent-action="decline">${escapeHtml(translateText('Reject optional', settings.locale))}</button>`,
+    `      <button class="consent-button consent-button--solid" type="button" data-consent-action="accept">${escapeHtml(translateText('Accept optional', settings.locale))}</button>`,
+    '    </div>',
+    '  </div>',
+    '</section>',
+    '<script src="/consent.js" defer></script>'
+  ].join('\n');
+}
+
 function createTemplateHelpers(settings, variables) {
   return {
     upper: value => String(value || '').toUpperCase(),
@@ -1800,7 +1865,11 @@ function createTemplateHelpers(settings, variables) {
     copy: (key, fallback = '') => resolveThemeTextCopy(settings, key, fallback, variables),
     date: value => formatDateForLocale(value, settings.locale),
     isoDate: value => toIsoDate(value),
-    seoHead: pageMeta => renderSeoHead({ ...pageMeta, siteName: settings.siteName }),
+    seoHead: pageMeta => renderSeoHead({
+      ...pageMeta,
+      siteName: settings.siteName,
+      googleAnalyticsId: settings.analytics?.googleMeasurementId || ''
+    }),
     longDate: value => formatDateForLocale(value, settings.locale, {
       weekday: 'long',
       year: 'numeric',
@@ -1809,7 +1878,8 @@ function createTemplateHelpers(settings, variables) {
     }),
     categoryLink: (post, options = {}) => renderCategoryLink(settings, post, options),
     categoryNav: (categories = [], currentCategory = null, options = {}) => renderCategoryNav(settings, categories, currentCategory, options),
-    categoryArchiveHeader: currentCategory => renderCategoryArchiveHeader(settings, currentCategory)
+    categoryArchiveHeader: currentCategory => renderCategoryArchiveHeader(settings, currentCategory),
+    consentDialog: () => renderConsentDialog(settings)
   };
 }
 
@@ -1894,6 +1964,7 @@ function normalizeSettings(settings = {}) {
     locale: normalizeLocale(settings.locale),
     features: normalizeFeatureFlags(settings.features),
     categories,
+    analytics: normalizeAnalyticsSettings(settings.analytics),
     themeText: normalizeThemeText(settings.themeText),
     widgets
   };
@@ -2431,6 +2502,19 @@ app.post('/api/publish', async (req, res) => {
     if (settings.features.categories && fs.existsSync(COMMON_TAXONOMY_STYLE)) {
       fs.copyFileSync(COMMON_TAXONOMY_STYLE, path.join(OUT_DIR, 'taxonomy.css'));
       logMsg("Copied shared taxonomy stylesheet (taxonomy.css).");
+    }
+
+    if (isAnalyticsConfigured(settings)) {
+      if (fs.existsSync(COMMON_CONSENT_SCRIPT)) {
+        fs.copyFileSync(COMMON_CONSENT_SCRIPT, path.join(OUT_DIR, 'consent.js'));
+        logMsg("Copied analytics consent script (consent.js).");
+      }
+      if (fs.existsSync(COMMON_CONSENT_STYLE)) {
+        fs.copyFileSync(COMMON_CONSENT_STYLE, path.join(OUT_DIR, 'consent.css'));
+        logMsg("Copied analytics consent stylesheet (consent.css).");
+      }
+    } else {
+      logMsg("Google Analytics not configured; skipped consent assets.");
     }
 
     if (fs.existsSync(FAVICON_SOURCE)) {

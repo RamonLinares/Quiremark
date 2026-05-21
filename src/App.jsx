@@ -1188,6 +1188,25 @@ export default function App() {
                         placeholder="/content/images/social-card.jpg"
                       />
                     </div>
+                    <div className="meta-input-group">
+                      <label>Google Analytics Measurement ID</label>
+                      <input
+                        type="text"
+                        className="meta-field"
+                        value={settings.analytics?.googleMeasurementId || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          analytics: {
+                            ...(settings.analytics || {}),
+                            googleMeasurementId: e.target.value.toUpperCase()
+                          }
+                        })}
+                        placeholder="G-XXXXXXXXXX"
+                      />
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>
+                        Enables the localized consent dialog and GA4 consent-mode script during publish.
+                      </span>
+                    </div>
                   </div>
                   <div className="meta-input-group">
                     <label>SEO Description</label>

@@ -13,6 +13,7 @@
 - **Client-side search**: When enabled, publish generates `out/search.json` and `out/search.js`, and every index template renders a search box that filters visible posts and shows linked results.
 - **Multilingual public UI**: The website locale controls built-in theme labels, date/time formatting, search text, newsletter copy, footer copy, and default widget labels. Post content is left exactly as authored.
 - **SEO and AI discovery output**: Generated pages include canonical metadata, Open Graph/Twitter tags, Schema.org JSON-LD, semantic dates, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, `llms-full.txt`, and Markdown alternates for LLM-friendly reading.
+- **Google Analytics consent flow**: Add a GA4 `G-...` measurement ID to emit a localized consent dialog, Google Consent Mode defaults, and privacy preference controls on the static site.
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
 - **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
 - **GitHub Pages deployer**: The local backend deploys `out/` to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
@@ -78,6 +79,9 @@ Locale is a top-level site setting:
       "color": "#a855f7"
     }
   ],
+  "analytics": {
+    "googleMeasurementId": ""
+  },
   "siteUrl": "https://example.com",
   "seoDescription": "A short public description for search and social previews.",
   "seoKeywords": "design, development, static blog",
@@ -87,6 +91,15 @@ Locale is a top-level site setting:
 ```
 
 The `features` flags control public output. Disabled search omits the search UI, `search.css`, `search.js`, `search.json`, and Schema.org `SearchAction`. Disabled categories omit category navigation, `taxonomy.css`, and generated category archive pages. Disabled RSS omits `feed.xml` and feed discovery links. Disabled newsletter or about features hide matching widgets even if those widgets remain enabled in the widget list.
+
+Google Analytics is optional. Set `analytics.googleMeasurementId` to a GA4 measurement ID such as `G-XXXXXXXXXX` to publish:
+
+- `<meta name="google-analytics-id">`
+- `consent.css` and `consent.js`
+- a localized analytics consent dialog
+- a persistent Privacy preferences button
+
+The generated script uses Google Consent Mode with analytics storage denied by default, denies advertising storage, user data, and personalization, and only grants analytics storage after the visitor accepts optional analytics. If the field is blank or invalid, no analytics or consent assets are emitted.
 
 Posts store their category as the category `slug` in front matter:
 
@@ -144,9 +157,9 @@ The compiler:
 - Cleans `out/` while preserving `out/.git`.
 - Reads non-draft Markdown posts.
 - Sanitizes rendered Markdown HTML.
-- Generates `index.html`, clean post URLs under `out/posts/<slug>/index.html`, optional category archives under `out/categories/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
+- Generates `index.html`, clean post URLs under `out/posts/<slug>/index.html`, optional category archives under `out/categories/<slug>/index.html`, Markdown alternates under `index.html.md`, optional search assets, optional analytics consent assets, optional `feed.xml`, `sitemap.xml`, `robots.txt`, `llms.txt`, and `llms-full.txt`.
 - Adds Schema.org `WebSite`, `Blog`, `BlogPosting`, `CollectionPage`, `ItemList`, `Person`, `Organization`, and `BreadcrumbList` JSON-LD where relevant.
-- Copies the selected template stylesheet, optional shared search stylesheet/script, optional shared taxonomy stylesheet, favicon, and uploaded images.
+- Copies the selected template stylesheet, optional shared search stylesheet/script, optional shared taxonomy stylesheet, optional shared consent stylesheet/script, favicon, and uploaded images.
 
 Click **Deploy** in the dashboard or send an authenticated `POST /api/deploy`.
 
@@ -157,7 +170,7 @@ The deployer only accepts GitHub SSH/HTTPS remotes, safe branch names, and bound
 ```text
 content/                 Blog settings, posts, and uploaded images
 src/                     React admin dashboard
-templates/               EJS themes plus shared search/taxonomy assets
+templates/               EJS themes plus shared search/taxonomy/consent assets
 out/                     Generated static site output
 dist/                    Built admin dashboard bundle
 server.js                Express API, compiler, and deployer

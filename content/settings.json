@@ -68,6 +68,9 @@
       "color": "#ef4444"
     }
   ],
+  "analytics": {
+    "googleMeasurementId": ""
+  },
   "themeText": {
     "searchLabel": "",
     "searchPlaceholder": "",
