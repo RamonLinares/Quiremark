@@ -129,7 +129,7 @@ a:hover {
 /* Main Layout */
 .main-layout {
   display: grid;
-  grid-template-columns: 1fr 310px;
+  grid-template-columns: minmax(0, 1fr) 310px;
   gap: 30px;
   max-width: var(--max-width);
   margin: 0 auto 60px auto;
@@ -369,7 +369,7 @@ a:hover {
 
 /* Post Detail page */
 .single-post-layout {
-  grid-template-columns: 1fr 310px;
+  grid-template-columns: minmax(0, 1fr) 310px;
 }
 
 .back-nav {
@@ -610,7 +610,7 @@ a:hover {
 @media (max-width: 900px) {
   .main-layout,
   .single-post-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 25px;
   }
   
