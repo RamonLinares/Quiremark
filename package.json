@@ -1,14 +1,29 @@
 {
-  "name": "zenithpress",
+  "name": "quiremark",
   "version": "1.0.0",
   "description": "Premium Static Blogging Platform with Local Admin Dashboard",
   "main": "server.js",
   "type": "module",
+  "bin": {
+    "quiremark": "./bin/quiremark.js"
+  },
+  "exports": {
+    ".": "./server.js"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "public/",
+    "templates/",
+    "server.js",
+    "README.md"
+  ],
   "scripts": {
     "dev": "vite --host & node server.js",
     "dev:server": "node server.js",
     "dev:client": "vite",
     "build": "vite build",
+    "prepack": "npm run build",
     "start": "node server.js"
   },
   "dependencies": {

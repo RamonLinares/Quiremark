@@ -4,7 +4,7 @@
   const analyticsIdMeta = document.querySelector('meta[name="google-analytics-id"]');
   const analyticsMeasurementId = analyticsIdMeta?.content.trim().toUpperCase() || '';
   const isAnalyticsConfigured = /^G-[A-Z0-9]+$/i.test(analyticsMeasurementId);
-  const storageKey = `zenithpress.analyticsConsent.${analyticsMeasurementId || 'default'}`;
+  const storageKey = `quiremark.analyticsConsent.${analyticsMeasurementId || 'default'}`;
 
   const consentModal = document.querySelector('[data-consent-modal]');
   const consentBackdrop = document.querySelector('[data-consent-backdrop]');

@@ -1,6 +1,7 @@
 <%
   const homePosts = Array.isArray(posts) ? posts : [];
   const allHomePosts = Array.isArray(allPosts) ? allPosts : homePosts;
+  const isCategoryArchive = Boolean(currentCategory);
   const leadPost = homePosts[0];
   const railPosts = homePosts.slice(1, 3);
   const usedSlugs = new Set([
@@ -123,6 +124,32 @@
     <% if (homePosts.length === 0) { %>
       <section class="magazine-empty">
         <p><%= helpers.copy('emptyState', 'No posts published yet.') %></p>
+      </section>
+    <% } else if (isCategoryArchive) { %>
+      <section class="magazine-archive-grid" aria-label="<%= currentCategory.name %> <%= helpers.t('Category Archive') %>">
+        <% homePosts.forEach(post => { %>
+          <article class="archive-card" data-search-card data-search-text="<%= textForSearch(post) %>">
+            <a class="archive-card-media" href="<%= postUrl(post) %>">
+              <% if (post.coverImage) { %>
+                <img src="<%= post.coverImage %>" alt="<%= post.title %>" loading="lazy" decoding="async">
+              <% } else { %>
+                <span class="image-placeholder"><%= initials(post.title) %></span>
+              <% } %>
+            </a>
+            <div class="archive-card-copy">
+              <%- helpers.categoryLink(post, { className: 'magazine-category magazine-category-small' }) %>
+              <h2><a href="<%= postUrl(post) %>"><%= post.title %></a></h2>
+              <% if (post.description) { %>
+                <p><%= post.description %></p>
+              <% } %>
+              <div class="archive-card-meta">
+                <time datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
+                <% if (post.readingTime) { %><span><%= post.readingTime %> min read</span><% } %>
+              </div>
+              <a class="archive-card-link" href="<%= postUrl(post) %>"><%= helpers.copy('readMoreLabel', 'Read story') %></a>
+            </div>
+          </article>
+        <% }) %>
       </section>
     <% } else { %>
       <section class="magazine-front-grid" id="front-page">
@@ -363,7 +390,7 @@
 
     <div class="footer-bottom">
       <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. <%= helpers.copy('footerRights', 'All rights reserved.') %></p>
-      <p><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>"><%= helpers.copy('footerCreditText', 'ZenithPress') %></a></p>
+      <p><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>"><%= helpers.copy('footerCreditText', 'Quiremark') %></a></p>
     </div>
   </footer>
 

@@ -3,7 +3,7 @@
   "sites": [
     {
       "id": "main",
-      "name": "Zenith Press",
+      "name": "Quiremark",
       "deploy": {
         "remoteUrl": "",
         "branch": "gh-pages",
