@@ -709,7 +709,7 @@ app.use('/site-assets/:siteId/content/images', (req, res, next) => {
   }
 });
 
-app.use(serveNoCache(path.join(__dirname, 'out'))); // Compiled static public site at root
+app.use(serveNoCache(OUT_DIR)); // Compiled static public site at root
 app.use('/admin', serveNoCache(path.join(__dirname, 'dist'))); // Admin dashboard SPA at /admin
 app.use('/content/images', serveNoCache(IMAGES_DIR)); // Decoded images
 app.get(['/favicon.svg', '/favicon.ico'], (req, res) => {

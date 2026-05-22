@@ -1,0 +1,376 @@
+<%
+  const homePosts = Array.isArray(posts) ? posts : [];
+  const allHomePosts = Array.isArray(allPosts) ? allPosts : homePosts;
+  const leadPost = homePosts[0];
+  const railPosts = homePosts.slice(1, 3);
+  const usedSlugs = new Set([
+    leadPost && leadPost.slug,
+    ...railPosts.map(item => item.slug)
+  ].filter(Boolean));
+  const notebookLead = homePosts.find(item => item && !usedSlugs.has(item.slug));
+  if (notebookLead) usedSlugs.add(notebookLead.slug);
+  const notebookList = homePosts.filter(item => item && !usedSlugs.has(item.slug)).slice(0, 3);
+  notebookList.forEach(item => usedSlugs.add(item.slug));
+  const remainingAfterNotebook = homePosts.filter(item => item && !usedSlugs.has(item.slug));
+  const featureCount = remainingAfterNotebook.length > 6 ? 4 : Math.min(2, remainingAfterNotebook.length);
+  const featureGrid = remainingAfterNotebook.slice(0, featureCount);
+  featureGrid.forEach(item => usedSlugs.add(item.slug));
+  const opinionPosts = homePosts.filter(item => item && !usedSlugs.has(item.slug)).slice(0, 3);
+  opinionPosts.forEach(item => usedSlugs.add(item.slug));
+  const weekPosts = homePosts.filter(item => item && !usedSlugs.has(item.slug)).slice(0, 8);
+  const sidebarWidgets = widgets.filter(widget => widget.enabled && widget.position === 'sidebar' && !['bio', 'newsletter'].includes(widget.type));
+  const newsletterWidget = widgets.find(widget => widget.enabled && widget.type === 'newsletter');
+  const footerWidgets = widgets.filter(widget => widget.enabled && widget.position === 'footer' && widget.type === 'custom-html');
+  const visibleCategories = features.categories ? categories.filter(category => Number(category.postCount) > 0) : [];
+  const totalPosts = visibleCategories.reduce((sum, category) => sum + Number(category.postCount || 0), 0);
+  const postUrl = post => `/posts/${post.slug}/index.html`;
+  const textForSearch = post => [post.title, post.description, post.categoryName, ...((post.tags || []))].join(' ');
+  const initials = value => String(value || siteName || 'Z').trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+%>
+<!DOCTYPE html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <%- helpers.seoHead(pageMeta) %>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,500;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+  <% if (features.search) { %>
+  <link rel="stylesheet" href="/search.css">
+  <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="lensdigest-magazine-theme">
+  <% if (leadPost) { %>
+    <div class="magazine-ticker">
+      <div class="magazine-ticker-inner">
+        <span class="ticker-badge"><%= helpers.t('Category') %></span>
+        <a href="<%= postUrl(leadPost) %>"><%= leadPost.title %></a>
+        <span class="ticker-date"><%= helpers.longDate(leadPost.date) %></span>
+      </div>
+    </div>
+  <% } %>
+
+  <header class="magazine-header">
+    <div class="magazine-header-inner">
+      <div class="magazine-edition">
+        <span><%= helpers.copy('editionLabel', 'Digital Edition') %></span>
+        <span><%= homePosts.length %> <%= helpers.t('All Posts') %></span>
+      </div>
+
+      <h1 class="magazine-logo">
+        <a href="/index.html"><%= siteName %></a>
+      </h1>
+
+      <div class="magazine-actions">
+        <% if (features.search) { %>
+          <button class="magazine-search-toggle" type="button" aria-label="<%= helpers.copy('searchLabel', 'Search Archive') %>" aria-controls="magazine-search-overlay" aria-expanded="false" data-search-toggle>
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16.5 16.5 4 4"></path>
+            </svg>
+          </button>
+        <% } %>
+        <a class="magazine-latest-link" href="<%= leadPost ? postUrl(leadPost) : '/index.html' %>"><%= helpers.copy('readMoreLabel', 'Latest story') %></a>
+      </div>
+    </div>
+
+    <% if (siteSubtitle) { %>
+      <p class="magazine-subtitle"><%= siteSubtitle %></p>
+    <% } %>
+
+    <% if (visibleCategories.length) { %>
+      <nav class="magazine-nav" aria-label="<%= helpers.t('Categories') %>">
+        <a class="<%= currentCategory ? '' : 'active' %>" href="/index.html"><%= helpers.t('All Posts') %><span><%= totalPosts %></span></a>
+        <% visibleCategories.slice(0, 7).forEach(category => { %>
+          <a class="<%= currentCategory && currentCategory.slug === category.slug ? 'active' : '' %>" href="<%= category.url %>" style="--category-color: <%= category.color %>">
+            <%= category.name %><span><%= category.postCount %></span>
+          </a>
+        <% }) %>
+      </nav>
+    <% } %>
+  </header>
+
+  <% if (features.search) { %>
+    <section class="magazine-search-overlay" id="magazine-search-overlay" data-search-overlay hidden>
+      <button class="magazine-search-backdrop" type="button" aria-label="<%= helpers.t('Close') %>" data-search-close></button>
+      <div class="magazine-search-dialog" role="dialog" aria-modal="true" aria-labelledby="magazine-search-title">
+        <button class="magazine-search-close" type="button" aria-label="<%= helpers.t('Close') %>" data-search-close>
+          <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+            <path d="m6 6 12 12"></path>
+            <path d="m18 6-12 12"></path>
+          </svg>
+        </button>
+        <section class="search-panel magazine-search" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+          <h2 id="magazine-search-title"><%= helpers.copy('searchLabel', 'Search Archive') %></h2>
+        <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
+        <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
+        <div class="search-results" data-search-results aria-live="polite"></div>
+        </section>
+      </div>
+    </section>
+  <% } %>
+
+  <main class="magazine-shell">
+    <%- helpers.categoryArchiveHeader(currentCategory) %>
+
+    <% if (homePosts.length === 0) { %>
+      <section class="magazine-empty">
+        <p><%= helpers.copy('emptyState', 'No posts published yet.') %></p>
+      </section>
+    <% } else { %>
+      <section class="magazine-front-grid" id="front-page">
+        <article class="magazine-lead-story" data-search-card data-search-text="<%= textForSearch(leadPost) %>">
+          <div class="lead-copy">
+            <%- helpers.categoryLink(leadPost, { className: 'magazine-category' }) %>
+            <h2><a href="<%= postUrl(leadPost) %>"><%= leadPost.title %></a></h2>
+            <% if (leadPost.description) { %>
+              <p class="lead-summary"><%= leadPost.description %></p>
+            <% } %>
+            <div class="story-meta">
+              <span><%= authorName %></span>
+              <span>/</span>
+              <time datetime="<%= helpers.isoDate(leadPost.date) %>"><%= helpers.date(leadPost.date) %></time>
+              <% if (leadPost.readingTime) { %><span>/</span><span><%= leadPost.readingTime %> min read</span><% } %>
+            </div>
+          </div>
+          <a class="lead-media" href="<%= postUrl(leadPost) %>">
+            <% if (leadPost.coverImage) { %>
+              <img src="<%= leadPost.coverImage %>" alt="<%= leadPost.title %>" loading="eager" decoding="async" fetchpriority="high">
+            <% } else { %>
+              <span class="image-placeholder"><%= initials(leadPost.title) %></span>
+            <% } %>
+          </a>
+        </article>
+
+        <aside class="front-rail">
+          <h3><span></span>On the front page</h3>
+          <div class="rail-story-list">
+            <% railPosts.forEach((post, index) => { %>
+              <article class="rail-story" data-search-card data-search-text="<%= textForSearch(post) %>">
+                <span class="rail-number"><%= String(index + 1).padStart(2, '0') %></span>
+                <%- helpers.categoryLink(post, { className: 'magazine-category magazine-category-small' }) %>
+                <h4><a href="<%= postUrl(post) %>"><%= post.title %></a></h4>
+              </article>
+            <% }) %>
+
+            <% sidebarWidgets.slice(0, 2).forEach(widget => { %>
+              <section class="magazine-widget magazine-widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+                <h4><%= widget.name %></h4>
+                <% if (widget.type === 'bio') { %>
+                  <div class="widget-bio">
+                    <% if (authorAvatar) { %>
+                      <img src="<%= authorAvatar %>" alt="<%= authorName %>" loading="lazy" decoding="async">
+                    <% } %>
+                    <strong><%= authorName %></strong>
+                    <p><%= authorBio %></p>
+                  </div>
+                <% } else if (widget.type === 'recent-posts') { %>
+                  <ul class="widget-links">
+                    <% allHomePosts.slice(0, 5).forEach(item => { %>
+                      <li><a href="<%= postUrl(item) %>"><%= item.title %></a></li>
+                    <% }) %>
+                  </ul>
+                <% } else if (widget.type === 'tag-cloud') { %>
+                  <div class="tag-cloud">
+                    <%
+                      const tags = {};
+                      allHomePosts.forEach(item => {
+                        if (item.tags) item.tags.forEach(tag => { tags[tag] = (tags[tag] || 0) + 1; });
+                      });
+                    %>
+                    <% Object.keys(tags).slice(0, 14).forEach(tag => { %>
+                      <span class="tag-chip"><%= tag %></span>
+                    <% }) %>
+                  </div>
+                <% } else if (widget.type === 'custom-html') { %>
+                  <div class="custom-html-content"><%- widget.htmlContent || '' %></div>
+                <% } %>
+              </section>
+            <% }) %>
+          </div>
+        </aside>
+      </section>
+
+      <% if (notebookLead || notebookList.length) { %>
+        <section class="magazine-section" id="notebook">
+          <div class="section-heading">
+            <h2>Notebook</h2>
+            <a href="/index.html">Latest</a>
+          </div>
+          <div class="notebook-grid">
+            <% if (notebookLead) { %>
+              <article class="notebook-feature" data-search-card data-search-text="<%= textForSearch(notebookLead) %>">
+                <a class="feature-media" href="<%= postUrl(notebookLead) %>">
+                  <% if (notebookLead.coverImage) { %>
+                    <img src="<%= notebookLead.coverImage %>" alt="<%= notebookLead.title %>" loading="lazy" decoding="async">
+                  <% } else { %>
+                    <span class="image-placeholder"><%= initials(notebookLead.title) %></span>
+                  <% } %>
+                </a>
+                <%- helpers.categoryLink(notebookLead, { className: 'magazine-category' }) %>
+                <h3><a href="<%= postUrl(notebookLead) %>"><%= notebookLead.title %></a></h3>
+                <% if (notebookLead.description) { %><p><%= notebookLead.description %></p><% } %>
+              </article>
+            <% } %>
+            <div class="notebook-list">
+              <% notebookList.forEach(post => { %>
+                <article class="list-story" data-search-card data-search-text="<%= textForSearch(post) %>">
+                  <a class="list-media" href="<%= postUrl(post) %>">
+                    <% if (post.coverImage) { %>
+                      <img src="<%= post.coverImage %>" alt="<%= post.title %>" loading="lazy" decoding="async">
+                    <% } else { %>
+                      <span class="image-placeholder"><%= initials(post.title) %></span>
+                    <% } %>
+                  </a>
+                  <div>
+                    <%- helpers.categoryLink(post, { className: 'magazine-category magazine-category-small' }) %>
+                    <h3><a href="<%= postUrl(post) %>"><%= post.title %></a></h3>
+                    <% if (post.description) { %><p><%= post.description %></p><% } %>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          </div>
+        </section>
+      <% } %>
+
+      <% if (featureGrid.length) { %>
+        <section class="magazine-card-grid" id="features">
+          <% featureGrid.forEach(post => { %>
+            <article class="compact-story" data-search-card data-search-text="<%= textForSearch(post) %>">
+              <a class="compact-media" href="<%= postUrl(post) %>">
+                <% if (post.coverImage) { %>
+                  <img src="<%= post.coverImage %>" alt="<%= post.title %>" loading="lazy" decoding="async">
+                <% } else { %>
+                  <span class="image-placeholder"><%= initials(post.title) %></span>
+                <% } %>
+              </a>
+              <%- helpers.categoryLink(post, { className: 'magazine-category' }) %>
+              <h3><a href="<%= postUrl(post) %>"><%= post.title %></a></h3>
+              <% if (post.description) { %><p><%= post.description %></p><% } %>
+            </article>
+          <% }) %>
+        </section>
+      <% } %>
+
+      <% if (opinionPosts.length) { %>
+        <section class="opinion-band" id="opinion">
+          <div class="section-heading">
+            <h2>Opinion</h2>
+            <a href="/index.html">Latest stories</a>
+          </div>
+          <div class="opinion-grid">
+            <% opinionPosts.forEach(post => { %>
+              <article class="opinion-story" data-search-card data-search-text="<%= textForSearch(post) %>">
+                <a href="<%= postUrl(post) %>">
+                  <h3><%= post.title %></h3>
+                  <% if (post.description) { %><p><%= post.description %></p><% } %>
+                  <span><%= post.categoryName %> / <%= helpers.date(post.date) %></span>
+                </a>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+
+      <% if (weekPosts.length) { %>
+        <section class="magazine-section from-week" id="from-week">
+          <div class="section-heading">
+            <h2>From the Week</h2>
+          </div>
+          <div class="week-grid">
+            <% weekPosts.forEach(post => { %>
+              <article class="compact-story" data-search-card data-search-text="<%= textForSearch(post) %>">
+                <a class="compact-media" href="<%= postUrl(post) %>">
+                  <% if (post.coverImage) { %>
+                    <img src="<%= post.coverImage %>" alt="<%= post.title %>" loading="lazy" decoding="async">
+                  <% } else { %>
+                    <span class="image-placeholder"><%= initials(post.title) %></span>
+                  <% } %>
+                </a>
+                <%- helpers.categoryLink(post, { className: 'magazine-category' }) %>
+                <h3><a href="<%= postUrl(post) %>"><%= post.title %></a></h3>
+                <% if (post.description) { %><p><%= post.description %></p><% } %>
+              </article>
+            <% }) %>
+          </div>
+        </section>
+      <% } %>
+    <% } %>
+  </main>
+
+  <% if (newsletterWidget) { %>
+    <section class="magazine-newsletter-band" aria-labelledby="magazine-newsletter-title">
+      <div class="magazine-newsletter-card">
+        <p class="magazine-newsletter-kicker"><%= newsletterWidget.name %></p>
+        <h2 id="magazine-newsletter-title"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></h2>
+        <p><%= helpers.copy('newsletterDescription', 'Subscribe for the latest stories directly to your inbox.') %></p>
+        <% if (newsletterWidget.actionUrl) { %>
+          <form class="newsletter-form" action="<%= newsletterWidget.actionUrl %>" method="post">
+            <input type="email" name="email" placeholder="<%= newsletterWidget.placeholderText || helpers.copy('newsletterPlaceholder', 'Email address') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email address') %>">
+            <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></button>
+          </form>
+        <% } else { %>
+          <form class="newsletter-form">
+            <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email address') %>">
+            <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
+          </form>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <footer class="magazine-footer">
+    <div class="magazine-footer-inner">
+      <div>
+        <h2><%= siteName %></h2>
+        <% if (siteSubtitle) { %><p><%= siteSubtitle %></p><% } %>
+        <div class="footer-socials">
+          <% if (socialLinks.github) { %><a href="<%= socialLinks.github %>" target="_blank" rel="noopener">GitHub</a><% } %>
+          <% if (socialLinks.twitter) { %><a href="<%= socialLinks.twitter %>" target="_blank" rel="noopener">Twitter</a><% } %>
+          <% if (socialLinks.linkedin) { %><a href="<%= socialLinks.linkedin %>" target="_blank" rel="noopener">LinkedIn</a><% } %>
+          <% if (socialLinks.instagram) { %><a href="<%= socialLinks.instagram %>" target="_blank" rel="noopener">Instagram</a><% } %>
+        </div>
+      </div>
+
+      <section class="magazine-footer-about">
+        <h3><%= helpers.t('About Me') %></h3>
+        <div class="footer-about-content">
+          <% if (authorAvatar) { %>
+            <img src="<%= authorAvatar %>" alt="<%= authorName %>" loading="lazy" decoding="async">
+          <% } %>
+          <div>
+            <strong><%= authorName %></strong>
+            <p><%= authorBio %></p>
+          </div>
+        </div>
+      </section>
+
+      <% footerWidgets.forEach(widget => { %>
+        <section class="magazine-footer-widget magazine-widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+          <h3><%= widget.name %></h3>
+          <div class="custom-html-content"><%- widget.htmlContent || '' %></div>
+        </section>
+      <% }) %>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. <%= helpers.copy('footerRights', 'All rights reserved.') %></p>
+      <p><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>"><%= helpers.copy('footerCreditText', 'ZenithPress') %></a></p>
+    </div>
+  </footer>
+
+  <% if (features.search) { %>
+  <script src="/search.js" defer></script>
+  <% } %>
+  <script src="/script.js" defer></script>
+  <%- helpers.consentDialog() %>
+</body>
+</html>

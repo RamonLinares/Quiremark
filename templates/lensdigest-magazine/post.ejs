@@ -1,0 +1,261 @@
+<%
+  const allHomePosts = Array.isArray(allPosts) ? allPosts : (Array.isArray(posts) ? posts : []);
+  const visibleCategories = features.categories ? categories.filter(category => Number(category.postCount) > 0) : [];
+  const totalPosts = visibleCategories.reduce((sum, category) => sum + Number(category.postCount || 0), 0);
+  const sidebarWidgets = widgets.filter(widget => widget.enabled && widget.position === 'sidebar' && !['bio', 'newsletter'].includes(widget.type));
+  const newsletterWidget = widgets.find(widget => widget.enabled && widget.type === 'newsletter');
+  const footerWidgets = widgets.filter(widget => widget.enabled && widget.position === 'footer' && widget.type === 'custom-html');
+  const relatedPosts = allHomePosts.filter(item => item.slug !== post.slug).slice(0, 4);
+  const postUrl = item => `/posts/${item.slug}/index.html`;
+  const initials = value => String(value || siteName || 'Z').trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('');
+%>
+<!DOCTYPE html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <%- helpers.seoHead(pageMeta) %>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="shortcut icon" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,500;0,700;0,800;0,900;1,700&display=swap" rel="stylesheet">
+  <% if (features.search) { %>
+  <link rel="stylesheet" href="/search.css">
+  <% } %>
+  <% if (features.categories) { %>
+  <link rel="stylesheet" href="/taxonomy.css">
+  <% } %>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="lensdigest-magazine-theme">
+  <div class="magazine-ticker">
+    <div class="magazine-ticker-inner">
+      <span class="ticker-badge"><%= post.categoryName %></span>
+      <a href="<%= postUrl(post) %>"><%= post.title %></a>
+      <span class="ticker-date"><%= helpers.longDate(post.date) %></span>
+    </div>
+  </div>
+
+  <header class="magazine-header">
+    <div class="magazine-header-inner">
+      <div class="magazine-edition">
+        <span><%= helpers.copy('editionLabel', 'Digital Edition') %></span>
+        <span><%= totalPosts || allHomePosts.length %> <%= helpers.t('All Posts') %></span>
+      </div>
+
+      <p class="magazine-logo">
+        <a href="/index.html"><%= siteName %></a>
+      </p>
+
+      <div class="magazine-actions">
+        <% if (features.search) { %>
+          <button class="magazine-search-toggle" type="button" aria-label="<%= helpers.copy('searchLabel', 'Search Archive') %>" aria-controls="magazine-search-overlay" aria-expanded="false" data-search-toggle>
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <circle cx="11" cy="11" r="7"></circle>
+              <path d="m16.5 16.5 4 4"></path>
+            </svg>
+          </button>
+        <% } %>
+        <a class="magazine-latest-link" href="/index.html"><%= helpers.copy('backLinkLabel', 'Back to front page') %></a>
+      </div>
+    </div>
+
+    <% if (siteSubtitle) { %>
+      <p class="magazine-subtitle"><%= siteSubtitle %></p>
+    <% } %>
+
+    <% if (visibleCategories.length) { %>
+      <nav class="magazine-nav" aria-label="<%= helpers.t('Categories') %>">
+        <a href="/index.html"><%= helpers.t('All Posts') %><span><%= totalPosts %></span></a>
+        <% visibleCategories.slice(0, 7).forEach(category => { %>
+          <a class="<%= post.categorySlug === category.slug ? 'active' : '' %>" href="<%= category.url %>" style="--category-color: <%= category.color %>">
+            <%= category.name %><span><%= category.postCount %></span>
+          </a>
+        <% }) %>
+      </nav>
+    <% } %>
+  </header>
+
+  <% if (features.search) { %>
+    <section class="magazine-search-overlay" id="magazine-search-overlay" data-search-overlay hidden>
+      <button class="magazine-search-backdrop" type="button" aria-label="<%= helpers.t('Close') %>" data-search-close></button>
+      <div class="magazine-search-dialog" role="dialog" aria-modal="true" aria-labelledby="magazine-search-title">
+        <button class="magazine-search-close" type="button" aria-label="<%= helpers.t('Close') %>" data-search-close>
+          <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+            <path d="m6 6 12 12"></path>
+            <path d="m18 6-12 12"></path>
+          </svg>
+        </button>
+        <section class="search-panel magazine-search" role="search" data-search-panel data-search-empty="<%= helpers.copy('searchNoResults', 'No matching posts found.') %>">
+          <h2 id="magazine-search-title"><%= helpers.copy('searchLabel', 'Search Archive') %></h2>
+          <label class="search-label" for="site-search"><%= helpers.copy('searchLabel', 'Search Archive') %></label>
+          <input id="site-search" class="search-input" type="search" data-search-input placeholder="<%= helpers.copy('searchPlaceholder', 'Search posts, categories, or tags...') %>" autocomplete="off">
+          <div class="search-results" data-search-results aria-live="polite"></div>
+        </section>
+      </div>
+    </section>
+  <% } %>
+
+  <main class="magazine-shell article-shell">
+    <nav class="article-back">
+      <a href="/index.html"><%= helpers.copy('backLinkLabel', 'Back to front page') %></a>
+    </nav>
+
+    <article class="article-page">
+      <header class="article-hero">
+        <div class="article-kicker">
+          <%- helpers.categoryLink(post, { className: 'magazine-category' }) %>
+          <time datetime="<%= helpers.isoDate(post.date) %>"><%= helpers.date(post.date) %></time>
+          <% if (post.readingTime) { %><span><%= post.readingTime %> min read</span><% } %>
+        </div>
+        <h1><%= post.title %></h1>
+        <% if (post.description) { %>
+          <p><%= post.description %></p>
+        <% } %>
+      </header>
+
+      <div class="article-media">
+        <% if (post.coverImage) { %>
+          <img src="<%= post.coverImage %>" alt="<%= post.title %>" loading="eager" decoding="async" fetchpriority="high">
+        <% } else { %>
+          <span class="image-placeholder"><%= initials(post.title) %></span>
+        <% } %>
+      </div>
+
+      <div class="article-grid">
+        <div class="article-content markdown-body">
+          <%- post.content %>
+        </div>
+
+        <aside class="article-sidebar">
+          <section class="article-info-panel">
+            <h2>Filed under</h2>
+            <%- helpers.categoryLink(post, { className: 'magazine-category' }) %>
+            <% if (post.tags && post.tags.length) { %>
+              <div class="tag-cloud">
+                <% post.tags.forEach(tag => { %>
+                  <span class="tag-chip"><%= tag %></span>
+                <% }) %>
+              </div>
+            <% } %>
+          </section>
+
+          <% if (relatedPosts.length) { %>
+            <section class="article-info-panel">
+              <h2>More stories</h2>
+              <ul class="widget-links">
+                <% relatedPosts.forEach(item => { %>
+                  <li><a href="<%= postUrl(item) %>"><%= item.title %></a></li>
+                <% }) %>
+              </ul>
+            </section>
+          <% } %>
+
+          <% sidebarWidgets.slice(0, 2).forEach(widget => { %>
+            <section class="article-info-panel magazine-widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+              <h2><%= widget.name %></h2>
+              <% if (widget.type === 'bio') { %>
+                <div class="widget-bio">
+                  <% if (authorAvatar) { %>
+                    <img src="<%= authorAvatar %>" alt="<%= authorName %>" loading="lazy" decoding="async">
+                  <% } %>
+                  <strong><%= authorName %></strong>
+                  <p><%= authorBio %></p>
+                </div>
+              <% } else if (widget.type === 'recent-posts') { %>
+                <ul class="widget-links">
+                  <% allHomePosts.slice(0, 5).forEach(item => { %>
+                    <li><a href="<%= postUrl(item) %>"><%= item.title %></a></li>
+                  <% }) %>
+                </ul>
+              <% } else if (widget.type === 'tag-cloud') { %>
+                <div class="tag-cloud">
+                  <%
+                    const tags = {};
+                    allHomePosts.forEach(item => {
+                      if (item.tags) item.tags.forEach(tag => { tags[tag] = (tags[tag] || 0) + 1; });
+                    });
+                  %>
+                  <% Object.keys(tags).slice(0, 14).forEach(tag => { %>
+                    <span class="tag-chip"><%= tag %></span>
+                  <% }) %>
+                </div>
+              <% } else if (widget.type === 'custom-html') { %>
+                <div class="custom-html-content"><%- widget.htmlContent || '' %></div>
+              <% } %>
+            </section>
+          <% }) %>
+        </aside>
+      </div>
+    </article>
+  </main>
+
+  <% if (newsletterWidget) { %>
+    <section class="magazine-newsletter-band" aria-labelledby="magazine-newsletter-title">
+      <div class="magazine-newsletter-card">
+        <p class="magazine-newsletter-kicker"><%= newsletterWidget.name %></p>
+        <h2 id="magazine-newsletter-title"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></h2>
+        <p><%= helpers.copy('newsletterDescription', 'Subscribe for the latest stories directly to your inbox.') %></p>
+        <% if (newsletterWidget.actionUrl) { %>
+          <form class="newsletter-form" action="<%= newsletterWidget.actionUrl %>" method="post">
+            <input type="email" name="email" placeholder="<%= newsletterWidget.placeholderText || helpers.copy('newsletterPlaceholder', 'Email address') %>" required aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email address') %>">
+            <button type="submit"><%= helpers.copy('newsletterSubmitLabel', 'Subscribe') %></button>
+          </form>
+        <% } else { %>
+          <form class="newsletter-form">
+            <input type="email" placeholder="<%= helpers.copy('newsletterDisabledPlaceholder', 'Configure newsletter endpoint') %>" disabled aria-label="<%= helpers.copy('newsletterEmailLabel', 'Email address') %>">
+            <button type="button" disabled><%= helpers.copy('newsletterDisabledLabel', 'Configure') %></button>
+          </form>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <footer class="magazine-footer">
+    <div class="magazine-footer-inner">
+      <div>
+        <h2><%= siteName %></h2>
+        <% if (siteSubtitle) { %><p><%= siteSubtitle %></p><% } %>
+        <div class="footer-socials">
+          <% if (socialLinks.github) { %><a href="<%= socialLinks.github %>" target="_blank" rel="noopener">GitHub</a><% } %>
+          <% if (socialLinks.twitter) { %><a href="<%= socialLinks.twitter %>" target="_blank" rel="noopener">Twitter</a><% } %>
+          <% if (socialLinks.linkedin) { %><a href="<%= socialLinks.linkedin %>" target="_blank" rel="noopener">LinkedIn</a><% } %>
+          <% if (socialLinks.instagram) { %><a href="<%= socialLinks.instagram %>" target="_blank" rel="noopener">Instagram</a><% } %>
+        </div>
+      </div>
+
+      <section class="magazine-footer-about">
+        <h3><%= helpers.t('About Me') %></h3>
+        <div class="footer-about-content">
+          <% if (authorAvatar) { %>
+            <img src="<%= authorAvatar %>" alt="<%= authorName %>" loading="lazy" decoding="async">
+          <% } %>
+          <div>
+            <strong><%= authorName %></strong>
+            <p><%= authorBio %></p>
+          </div>
+        </div>
+      </section>
+
+      <% footerWidgets.forEach(widget => { %>
+        <section class="magazine-footer-widget magazine-widget-<%= widget.type %>" id="widget-<%= widget.id %>">
+          <h3><%= widget.name %></h3>
+          <div class="custom-html-content"><%- widget.htmlContent || '' %></div>
+        </section>
+      <% }) %>
+    </div>
+
+    <div class="footer-bottom">
+      <p>&copy; <%= new Date().getFullYear() %> <%= siteName %>. <%= helpers.copy('footerRights', 'All rights reserved.') %></p>
+      <p><%= helpers.copy('footerCreditLabel', 'Powered by') %> <a href="<%= helpers.copy('footerCreditUrl', '#') %>"><%= helpers.copy('footerCreditText', 'ZenithPress') %></a></p>
+    </div>
+  </footer>
+
+  <% if (features.search) { %>
+  <script src="/search.js" defer></script>
+  <% } %>
+  <script src="/script.js" defer></script>
+  <%- helpers.consentDialog() %>
+</body>
+</html>

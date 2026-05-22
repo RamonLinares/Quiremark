@@ -1071,6 +1071,21 @@ export default function App() {
                         </div>
                       </div>
 
+                      {/* LensDigest Magazine Card */}
+                      <div
+                        className={`template-card ${settings.selectedTemplate === 'lensdigest-magazine' ? 'active' : ''}`}
+                        onClick={() => saveSettings({ ...settings, selectedTemplate: 'lensdigest-magazine' })}
+                      >
+                        <div className="template-card-preview lensdigest">
+                          <span className="lensdigest-preview-lockup">Digest</span>
+                          {settings.selectedTemplate === 'lensdigest-magazine' && <span className="template-preview-badge">Active</span>}
+                        </div>
+                        <div className="template-card-info">
+                          <h4>LensDigest Magazine Theme</h4>
+                          <p>Editorial magazine front page with a masthead, lead story, right rail, section decks, and opinion bands.</p>
+                        </div>
+                      </div>
+
                       {/* Eco-Forest Minimalist Card */}
                       <div
                         className={`template-card ${settings.selectedTemplate === 'eco-forest' ? 'active' : ''}`}

@@ -18,12 +18,13 @@
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
 - **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
 - **GitHub Pages deployer**: The local backend deploys the selected website output to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
-- **6 visual templates**:
+- **7 visual templates**:
   - `nordic-minimal`
   - `neo-glass`
   - `cyber-monospace`
   - `sunset-vaporwave`
   - `brutalist-newspaper`
+  - `lensdigest-magazine`
   - `eco-forest`
 
 ## Getting Started
