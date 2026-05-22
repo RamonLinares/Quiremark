@@ -57,4 +57,4 @@ Micro-animations are subtle visual responses to user interactions. They make the
 - A button shouldn't just change color; it should scale down slightly on click (`active { transform: scale(0.96) }`) and glide back.
 - Elements should transition using custom cubic-beziers like `cubic-bezier(0.4, 0, 0.2, 1)` rather than standard `ease`.
 
-We will implement these visual guidelines across our templates in ZenithPress!
+We will implement these visual guidelines across our templates in Quiremark!

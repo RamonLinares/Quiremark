@@ -145,7 +145,7 @@ export default function App() {
   const [settings, setSettings] = useState(null);
   const [posts, setPosts] = useState([]);
   const [consoleLogs, setConsoleLogs] = useState([
-    '[SYSTEM] ZenithPress Admin Dashboard booted.',
+    '[SYSTEM] Quiremark Admin Dashboard booted.',
     '[SYSTEM] Local Express server connection status: VERIFIED.'
   ]);
 
@@ -631,7 +631,7 @@ export default function App() {
         <div className="admin-glow-1"></div>
         <div className="admin-glow-2"></div>
         <div className="auth-card">
-          <div className="auth-logo">ZenithPress</div>
+          <div className="auth-logo">Quiremark</div>
           <div className="auth-subtitle">Static Blogging Control Center</div>
           <form onSubmit={handleLogin}>
             <div className="auth-input-group">
@@ -665,7 +665,7 @@ export default function App() {
       {/* Sidebar navigation */}
       <div className="sidebar">
         <div className="sidebar-logo">
-          <span>☄️</span> ZenithPress
+          <span>☄️</span> Quiremark
         </div>
         <div className="site-switcher">
           <label>Website</label>
