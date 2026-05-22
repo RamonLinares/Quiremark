@@ -1,6 +1,6 @@
 # Quiremark
 
-> A database-free static blogging platform with a local React admin dashboard, Markdown content, switchable EJS themes, generated search, and GitHub Pages deployment.
+> A database-free static blogging platform with a private React admin dashboard, Markdown content, switchable EJS themes, generated search, and source-repo or static-branch publishing.
 
 ## Features
 
@@ -17,7 +17,7 @@
 - **Google Analytics consent flow**: Add a GA4 `G-...` measurement ID to emit a localized consent dialog, Google Consent Mode defaults, and privacy preference controls on the static site.
 - **Configurable newsletter forms**: Newsletter widgets use a static-site-friendly `actionUrl` endpoint. If no endpoint is configured, the generated form is disabled instead of pretending to subscribe.
 - **Theme copy overrides**: Public theme text such as search labels, empty states, read-more links, newsletter copy, footer credits, and theme status labels can be overridden from Settings.
-- **GitHub Pages deployer**: The local backend deploys the selected website output to a GitHub remote using local Git credentials. Remote URLs, branch names, and commit messages are validated before Git runs.
+- **Publish modes for hosted workflows**: The backend can either force-push generated static output to a GitHub Pages-style branch, or commit `content/` changes back to a source repository so Cloudflare Pages or another CI host builds from `main`.
 - **7 visual templates**:
   - `nordic-minimal`
   - `neo-glass`
@@ -58,11 +58,16 @@ ADMIN_PASSWORD=admin
 ADMIN_SESSION_TTL_MS=28800000
 PUBLIC_SITE_URL=https://example.com
 QUIREMARK_DATA_DIR=/data
+GITHUB_TOKEN=<repo-content-token>
 ```
 
 Set `ADMIN_PASSWORD` before using the admin dashboard beyond local testing.
 
 `QUIREMARK_DATA_DIR` is optional for local development. Set it on persistent hosts such as Railway when posts, websites, uploads, and compiled output should live outside the deployment image.
+
+`GITHUB_TOKEN` or `GH_TOKEN` is required for the **Source repo / Cloudflare Pages**
+publish mode. Use a fine-grained token with contents read/write access to the
+website repositories that Quiremark should manage.
 
 ## Railway Deployment
 
@@ -96,12 +101,21 @@ Each registry entry stores a display name and deployment defaults:
   "id": "portfolio",
   "name": "Portfolio",
   "deploy": {
+    "mode": "source-repo",
     "remoteUrl": "git@github.com:user/portfolio.git",
-    "branch": "gh-pages",
-    "commitMessage": "Publish: Static Pages Deploy"
+    "branch": "main",
+    "commitMessage": "Publish: Content Update"
   }
 }
 ```
+
+Use `mode: "source-repo"` for sites where the website repository owns
+`content/`, config, assets, and its own deployment pipeline. Publishing from the
+admin commits the selected workspace's `content/` folder to the configured branch;
+Cloudflare Pages then builds the public site from that push.
+
+Use `mode: "static-branch"` for the older GitHub Pages flow where Quiremark
+force-pushes the generated `out/` snapshot to a deploy branch such as `gh-pages`.
 
 Locale is a top-level setting inside each website's `settings.json`:
 
@@ -194,7 +208,7 @@ Supported variables include:
 
 ## Static Publishing
 
-Select a website in the admin sidebar, then click **Compile** in the dashboard or send an authenticated `POST /api/publish` with `X-Zenith-Site: <id>`.
+Select a website in the admin sidebar, then click **Compile** in the dashboard or send an authenticated `POST /api/publish` with `X-Quiremark-Site: <id>`.
 
 The compiler:
 
@@ -230,9 +244,18 @@ import { publishSite } from 'quiremark';
 const result = await publishSite({ siteRoot: process.cwd() });
 ```
 
-Click **Deploy** in the dashboard or send an authenticated `POST /api/deploy` with `X-Zenith-Site: <id>`.
+Click **Publish Website** in the dashboard or send an authenticated `POST /api/deploy` with `X-Quiremark-Site: <id>`.
 
-The deployer only accepts GitHub SSH/HTTPS remotes, safe branch names, and bounded commit messages. It runs Git through argument arrays, not shell interpolation. Each website output folder is its own local Git workspace, so different websites can target different repositories without remote collisions.
+For source-repo sites, use **Import Content From Repo** once after creating the
+workspace. It pulls the configured repository's `content/` folder into the
+private Quiremark data volume. After that, mobile edits happen in Quiremark and
+**Publish Website** commits them back to the source repo.
+
+Publishing only accepts GitHub SSH/HTTPS remotes, safe branch names, and bounded
+commit messages. Static-branch publishing runs Git through argument arrays, not
+shell interpolation, and each website output folder is its own local Git
+workspace. Source-repo publishing uses the GitHub API token and commits only the
+selected workspace's `content/` tree to the configured branch.
 
 ## Project Structure
 

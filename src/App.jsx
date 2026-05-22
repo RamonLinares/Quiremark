@@ -166,6 +166,7 @@ export default function App() {
 
   // Deploy settings
   const [deploySettings, setDeploySettings] = useState({
+    mode: 'static-branch',
     remoteUrl: '',
     branch: 'gh-pages',
     commitMessage: 'Publish: Static Pages Deploy'
@@ -222,7 +223,7 @@ export default function App() {
       headers.set('Authorization', `Bearer ${tokenOverride}`);
     }
     if (siteOverride) {
-      headers.set('X-Zenith-Site', siteOverride);
+      headers.set('X-Quiremark-Site', siteOverride);
     }
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {
@@ -242,6 +243,7 @@ export default function App() {
   const updateDeploySettingsFromSite = (site) => {
     const deploy = site?.deploy || {};
     setDeploySettings({
+      mode: deploy.mode || 'static-branch',
       remoteUrl: deploy.remoteUrl || '',
       branch: deploy.branch || 'gh-pages',
       commitMessage: deploy.commitMessage || 'Publish: Static Pages Deploy'
@@ -546,15 +548,15 @@ export default function App() {
     }
   };
 
-  // Deploy to GitHub Pages
+  // Deploy selected site
   const handleDeploy = async () => {
     if (!deploySettings.remoteUrl) {
-      alert('Git Remote Target Repository URL is required to push deployment!');
+      alert('GitHub repository URL is required before publishing.');
       return;
     }
     setIsDeploying(true);
     setActiveTab('publisher');
-    logMsg(`Initiating shell Deployer for ${selectedSite?.name || selectedSiteId} to target: ${deploySettings.remoteUrl}...`);
+    logMsg(`Publishing ${selectedSite?.name || selectedSiteId} to target: ${deploySettings.remoteUrl}...`);
     try {
       await saveSelectedSite({ deploy: deploySettings });
       const res = await apiFetch('/api/deploy', {
@@ -568,14 +570,42 @@ export default function App() {
       (data.log || []).forEach(l => logMsg(l, 'deploy'));
 
       if (res.ok && data.success) {
-        logMsg(`Deployment completed successfully! Pushed static pages to ${deploySettings.branch}.`);
-        alert('Blog successfully published and deployed to GitHub Pages!');
+        const modeLabel = deploySettings.mode === 'source-repo' ? 'source repository' : 'static branch';
+        logMsg(`Publication completed successfully. Updated ${modeLabel} ${deploySettings.branch}.`);
+        alert('Website successfully published.');
       } else {
         logMsg(data.error || 'Deploy failed.', 'error');
         alert(`Deploy failed: ${data.error}`);
       }
     } catch (err) {
       logMsg(err.message || 'Deploy request failed.', 'error');
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  const handleImportSource = async () => {
+    if (!selectedSite || !deploySettings.remoteUrl) {
+      alert('GitHub repository URL is required before importing content.');
+      return;
+    }
+    setIsDeploying(true);
+    setActiveTab('publisher');
+    logMsg(`Importing source content for ${selectedSite.name || selectedSiteId}...`);
+    try {
+      await saveSelectedSite({ deploy: { ...deploySettings, mode: 'source-repo' } });
+      const res = await apiFetch(`/api/sites/${selectedSite.id}/import-source`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...deploySettings, mode: 'source-repo' })
+      }, authToken, selectedSite.id);
+      const data = await readApiResponse(res);
+      (data.log || []).forEach(l => logMsg(l, 'deploy'));
+      await fetchData(authToken, selectedSite.id);
+      logMsg(`Imported ${data.imported || 0} content file(s) from source repository.`);
+    } catch (err) {
+      logMsg(err.message || 'Source import failed.', 'error');
+      alert(`Source import failed: ${err.message}`);
     } finally {
       setIsDeploying(false);
     }
@@ -864,7 +894,7 @@ export default function App() {
                   <div className="brand-settings-card">
                     <h3>📢 Live Public Site</h3>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                      Your blog generates clean, lightning-fast static pages optimized for search engines (SEO) and zero load latency. Pushing updates deploys them straight to GitHub Pages!
+                      Your blog generates clean static pages and can publish either source content or generated output, depending on the selected website.
                     </p>
                     <div style={{ display: 'flex', gap: '15px', marginTop: '10px' }}>
                       <button className="solid-btn" onClick={handleCompile}>Build Local</button>
@@ -873,7 +903,7 @@ export default function App() {
                         style={{ border: '1px solid rgba(255,255,255,0.1)' }}
                         onClick={() => setActiveTab('publisher')}
                       >
-                        Push to GitHub Pages
+                        Open Publisher
                       </button>
                     </div>
                   </div>
@@ -1649,8 +1679,8 @@ export default function App() {
               <div>
                 <div className="panel-header">
                   <div className="panel-title">
-                    <h2>Publisher Center & Git Deployer</h2>
-                    <p>Compile and deploy {selectedSite?.name || 'the selected website'} to its own GitHub repository.</p>
+                    <h2>Publisher Center</h2>
+                    <p>Compile and publish {selectedSite?.name || 'the selected website'} from the private admin workspace.</p>
                   </div>
                 </div>
 
@@ -1659,26 +1689,51 @@ export default function App() {
                     <h3 style={{ fontSize: '1.15rem' }}>⚙️ Deployment Variables</h3>
                     <div className="site-publish-summary">
                       <span>{selectedSite?.name || selectedSiteId}</span>
-                      <small>{selectedSiteId === MAIN_SITE_ID ? 'out/' : `sites/${selectedSiteId}/out/`}</small>
+                      <small>
+                        {deploySettings.mode === 'source-repo'
+                          ? `${selectedSiteId === MAIN_SITE_ID ? 'content/' : `sites/${selectedSiteId}/content/`} -> ${deploySettings.branch || 'main'}`
+                          : `${selectedSiteId === MAIN_SITE_ID ? 'out/' : `sites/${selectedSiteId}/out/`} -> ${deploySettings.branch || 'gh-pages'}`}
+                      </small>
                     </div>
 
                     <div className="meta-input-group" style={{ marginTop: '10px' }}>
-                      <label>GitHub Remote Repository Target</label>
+                      <label>Deployment Mode</label>
+                      <select
+                        className="meta-field"
+                        value={deploySettings.mode || 'static-branch'}
+                        onChange={(e) => {
+                          const mode = e.target.value;
+                          setDeploySettings(prev => ({
+                            ...prev,
+                            mode,
+                            branch: mode === 'source-repo' && (!prev.branch || prev.branch === 'gh-pages') ? 'main' : prev.branch
+                          }));
+                        }}
+                      >
+                        <option value="source-repo">Source repo / Cloudflare Pages</option>
+                        <option value="static-branch">Static branch / GitHub Pages</option>
+                      </select>
+                    </div>
+
+                    <div className="meta-input-group" style={{ marginTop: '10px' }}>
+                      <label>{deploySettings.mode === 'source-repo' ? 'GitHub Source Repository' : 'GitHub Static Repository'}</label>
                       <input
                         type="text"
                         className="meta-field"
                         value={deploySettings.remoteUrl}
                         onChange={(e) => setDeploySettings({ ...deploySettings, remoteUrl: e.target.value })}
-                        placeholder="git@github.com:user/repo.git"
+                        placeholder="https://github.com/user/repo.git"
                         required
                       />
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Ensure you have SSH/HTTPS credentials configured locally.
+                        {deploySettings.mode === 'source-repo'
+                          ? 'Commits content/ to this repo. Set GITHUB_TOKEN or GH_TOKEN on the hosted admin.'
+                          : 'Force-pushes generated static output to this repo branch using local Git credentials.'}
                       </span>
                     </div>
 
                     <div className="meta-input-group">
-                      <label>Target Branch</label>
+                      <label>{deploySettings.mode === 'source-repo' ? 'Source Branch' : 'Static Branch'}</label>
                       <input
                         type="text"
                         className="meta-field"
@@ -1710,18 +1765,29 @@ export default function App() {
                         style={{ border: '1px solid rgba(255,255,255,0.1)' }}
                         type="button"
                         onClick={() => saveSelectedSite({ deploy: deploySettings })
-                          .then(() => logMsg('Deployment settings saved for selected website.'))
+                        .then(() => logMsg('Deployment settings saved for selected website.'))
                           .catch(err => logMsg(err.message || 'Failed to save deployment settings.', 'error'))}
                       >
                         Save Deploy Settings
                       </button>
+                      {deploySettings.mode === 'source-repo' && (
+                        <button
+                          className="text-btn"
+                          style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                          type="button"
+                          onClick={handleImportSource}
+                          disabled={isDeploying}
+                        >
+                          Import Content From Repo
+                        </button>
+                      )}
                       <button
                         className="solid-btn"
                         style={{ background: 'linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-pink) 100%)' }}
                         onClick={handleDeploy}
                         disabled={isDeploying || isCompiling}
                       >
-                        {isDeploying ? '🚀 Pushing static branch...' : '🚀 Deploy Static to GitHub'}
+                        {isDeploying ? '🚀 Publishing...' : '🚀 Publish Website'}
                       </button>
                     </div>
                   </div>

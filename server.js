@@ -44,10 +44,12 @@ const DEFAULT_ANALYTICS_SETTINGS = {
   googleMeasurementId: ''
 };
 const DEFAULT_DEPLOY_SETTINGS = {
+  mode: 'static-branch',
   remoteUrl: '',
   branch: 'gh-pages',
   commitMessage: 'Publish: Static Pages Deploy'
 };
+const DEPLOY_MODES = new Set(['static-branch', 'source-repo']);
 const DEFAULT_CATEGORIES = [
   {
     slug: 'design',
@@ -842,9 +844,11 @@ function normalizeSiteName(value, fallback = 'Untitled Website') {
 }
 
 function normalizeDeploySettings(deploy = {}) {
+  const mode = DEPLOY_MODES.has(deploy.mode) ? deploy.mode : DEFAULT_DEPLOY_SETTINGS.mode;
   return {
+    mode,
     remoteUrl: deploy.remoteUrl ? validateRemoteUrl(deploy.remoteUrl) : '',
-    branch: deploy.branch ? validateBranch(deploy.branch) : DEFAULT_DEPLOY_SETTINGS.branch,
+    branch: deploy.branch ? validateBranch(deploy.branch) : (mode === 'source-repo' ? 'main' : DEFAULT_DEPLOY_SETTINGS.branch),
     commitMessage: deploy.commitMessage
       ? validateCommitMessage(deploy.commitMessage)
       : DEFAULT_DEPLOY_SETTINGS.commitMessage
@@ -981,7 +985,7 @@ function getSiteRecord(siteId) {
 }
 
 function getSiteContextFromRequest(req) {
-  const requestedId = req.get('X-Zenith-Site') || req.query.site || readSiteRegistry().activeSiteId;
+  const requestedId = req.get('X-Quiremark-Site') || req.query.site || readSiteRegistry().activeSiteId;
   const { record } = getSiteRecord(requestedId);
   const context = getSiteContext(record.id);
   ensureSiteDirectories(context);
@@ -2351,6 +2355,233 @@ function validateCommitMessage(message) {
   return value;
 }
 
+function parseGitHubRemote(remoteUrl) {
+  const value = validateRemoteUrl(remoteUrl);
+  const match = value.match(/^(?:git@github\.com:|https:\/\/github\.com\/)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/);
+  if (!match) {
+    const err = new Error('Remote URL must point to a GitHub repository.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return { owner: match[1], repo: match[2] };
+}
+
+function getGitHubToken({ required = false } = {}) {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+  if (required && !token) {
+    const err = new Error('GITHUB_TOKEN or GH_TOKEN is required for source-repo publishing.');
+    err.statusCode = 500;
+    throw err;
+  }
+  return token;
+}
+
+async function githubApi(pathname, options = {}) {
+  const token = options.token || getGitHubToken();
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    ...(options.headers || {})
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+
+  const response = await fetch(`https://api.github.com${pathname}`, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload.message || `GitHub API request failed with ${response.status}.`);
+    err.statusCode = response.status;
+    throw err;
+  }
+  return payload;
+}
+
+function toRepoPath(...segments) {
+  return segments
+    .join('/')
+    .split(path.sep)
+    .join('/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/^\/+/, '');
+}
+
+function listLocalContentFiles(site) {
+  ensureSiteDirectories(site);
+  const files = [];
+
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === '.DS_Store') continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const relativePath = path.relative(site.contentDir, fullPath);
+      files.push({
+        absolutePath: fullPath,
+        repoPath: toRepoPath('content', relativePath)
+      });
+    }
+  }
+
+  if (fs.existsSync(site.contentDir)) walk(site.contentDir);
+  return files.sort((a, b) => a.repoPath.localeCompare(b.repoPath));
+}
+
+async function getGitHubBranchState(owner, repo, branch, token) {
+  const encodedBranch = encodeURIComponent(branch);
+  const ref = await githubApi(`/repos/${owner}/${repo}/git/ref/heads/${encodedBranch}`, { token });
+  const commit = await githubApi(`/repos/${owner}/${repo}/git/commits/${ref.object.sha}`, { token });
+  const tree = await githubApi(`/repos/${owner}/${repo}/git/trees/${commit.tree.sha}?recursive=1`, { token });
+  return { refSha: ref.object.sha, commit, tree };
+}
+
+async function createGitHubBlob(owner, repo, filePath, token) {
+  const content = fs.readFileSync(filePath).toString('base64');
+  const blob = await githubApi(`/repos/${owner}/${repo}/git/blobs`, {
+    method: 'POST',
+    token,
+    body: { content, encoding: 'base64' }
+  });
+  return blob.sha;
+}
+
+function contentTreeEntries(tree = {}) {
+  return new Map((tree.tree || [])
+    .filter(entry => entry.type === 'blob' && entry.path.startsWith('content/'))
+    .map(entry => [entry.path, entry.sha]));
+}
+
+async function commitSiteContentToGitHub(site, deploy, logMsg) {
+  const safeRemoteUrl = validateRemoteUrl(deploy.remoteUrl);
+  const safeBranch = validateBranch(deploy.branch || 'main');
+  const safeCommitMessage = validateCommitMessage(deploy.commitMessage || DEFAULT_DEPLOY_SETTINGS.commitMessage);
+  const { owner, repo } = parseGitHubRemote(safeRemoteUrl);
+  const token = getGitHubToken({ required: true });
+
+  logMsg(`Preparing source-repo publish to ${owner}/${repo}#${safeBranch}...`);
+  const state = await getGitHubBranchState(owner, repo, safeBranch, token);
+  const localFiles = listLocalContentFiles(site);
+  if (!localFiles.some(file => file.repoPath === 'content/settings.json')) {
+    const err = new Error('Selected website has no content/settings.json to publish.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const existingContent = contentTreeEntries(state.tree);
+  const localContent = new Map();
+  const treeUpdates = [];
+
+  for (const file of localFiles) {
+    const sha = await createGitHubBlob(owner, repo, file.absolutePath, token);
+    localContent.set(file.repoPath, sha);
+    if (existingContent.get(file.repoPath) !== sha) {
+      treeUpdates.push({
+        path: file.repoPath,
+        mode: '100644',
+        type: 'blob',
+        sha
+      });
+    }
+  }
+
+  for (const existingPath of existingContent.keys()) {
+    if (!localContent.has(existingPath)) {
+      treeUpdates.push({ path: existingPath, sha: null });
+    }
+  }
+
+  if (!treeUpdates.length) {
+    logMsg('No source content changes detected.');
+    return { changed: false, commitSha: state.refSha };
+  }
+
+  const tree = await githubApi(`/repos/${owner}/${repo}/git/trees`, {
+    method: 'POST',
+    token,
+    body: {
+      base_tree: state.commit.tree.sha,
+      tree: treeUpdates
+    }
+  });
+  const dateStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const commit = await githubApi(`/repos/${owner}/${repo}/git/commits`, {
+    method: 'POST',
+    token,
+    body: {
+      message: `${safeCommitMessage} (${dateStr})`,
+      tree: tree.sha,
+      parents: [state.refSha]
+    }
+  });
+  await githubApi(`/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(safeBranch)}`, {
+    method: 'PATCH',
+    token,
+    body: {
+      sha: commit.sha,
+      force: false
+    }
+  });
+
+  logMsg(`Committed ${treeUpdates.length} content file update(s) to ${owner}/${repo}@${commit.sha.slice(0, 7)}.`);
+  return { changed: true, commitSha: commit.sha };
+}
+
+async function importSiteContentFromGitHub(site, deploy, logMsg) {
+  const safeRemoteUrl = validateRemoteUrl(deploy.remoteUrl);
+  const safeBranch = validateBranch(deploy.branch || 'main');
+  const { owner, repo } = parseGitHubRemote(safeRemoteUrl);
+  const token = getGitHubToken();
+
+  logMsg(`Importing source content from ${owner}/${repo}#${safeBranch}...`);
+  const state = await getGitHubBranchState(owner, repo, safeBranch, token);
+  const contentEntries = (state.tree.tree || [])
+    .filter(entry => entry.type === 'blob' && entry.path.startsWith('content/'))
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  if (!contentEntries.some(entry => entry.path === 'content/settings.json')) {
+    const err = new Error('Source repository does not contain content/settings.json.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  fs.rmSync(site.contentDir, { recursive: true, force: true });
+  ensureSiteDirectories(site);
+
+  for (const entry of contentEntries) {
+    const blob = await githubApi(`/repos/${owner}/${repo}/git/blobs/${entry.sha}`, { token });
+    const relativePath = entry.path.replace(/^content\//, '');
+    const targetPath = resolveInside(site.contentDir, relativePath);
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.writeFileSync(targetPath, Buffer.from(String(blob.content || '').replace(/\s+/g, ''), 'base64'));
+  }
+
+  logMsg(`Imported ${contentEntries.length} content file(s).`);
+  return { imported: contentEntries.length };
+}
+
+function saveDeploySettingsForSite(siteId, deploy) {
+  const normalizedDeploy = normalizeDeploySettings(deploy);
+  const registryUpdate = readSiteRegistry();
+  const siteIndex = registryUpdate.sites.findIndex(record => record.id === siteId);
+  if (siteIndex !== -1) {
+    registryUpdate.sites[siteIndex] = {
+      ...registryUpdate.sites[siteIndex],
+      deploy: normalizedDeploy,
+      updatedAt: new Date().toISOString()
+    };
+    registryUpdate.activeSiteId = siteId;
+    writeSiteRegistry(registryUpdate);
+  }
+  return normalizedDeploy;
+}
+
 // ----------------------------------------------------
 // API ROUTES
 // ----------------------------------------------------
@@ -2458,6 +2689,28 @@ app.put('/api/sites/:siteId', (req, res) => {
     res.json({ success: true, site: updated });
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message || 'Failed to update website.' });
+  }
+});
+
+app.post('/api/sites/:siteId/import-source', async (req, res) => {
+  const log = [];
+  const logMsg = (msg) => { log.push(`[IMPORT] ${msg}`); console.log(`[IMPORT] ${msg}`); };
+
+  try {
+    const id = normalizeSiteId(req.params.siteId);
+    const { record } = getSiteRecord(id);
+    const site = { ...getSiteContext(record.id), record };
+    ensureSiteDirectories(site);
+    const deploy = saveDeploySettingsForSite(site.id, {
+      ...record.deploy,
+      ...req.body,
+      mode: req.body.mode || 'source-repo'
+    });
+    const result = await importSiteContentFromGitHub(site, deploy, logMsg);
+    res.json({ success: true, ...result, log });
+  } catch (err) {
+    logMsg(`SOURCE IMPORT FAILED: ${err.message || JSON.stringify(err)}`);
+    res.status(err.statusCode || 500).json({ success: false, error: err.message || 'Failed to import source content.', log });
   }
 });
 
@@ -2926,28 +3179,38 @@ app.post('/api/deploy', async (req, res) => {
 
   try {
     const site = getSiteContextFromRequest(req);
-    const deployInput = {
+    const deploy = saveDeploySettingsForSite(site.id, {
       ...site.record.deploy,
       ...req.body
-    };
-    const safeRemoteUrl = validateRemoteUrl(deployInput.remoteUrl);
-    const safeBranch = validateBranch(deployInput.branch || DEFAULT_DEPLOY_SETTINGS.branch);
-    const safeCommitMessage = validateCommitMessage(deployInput.commitMessage || DEFAULT_DEPLOY_SETTINGS.commitMessage);
-    const registryUpdate = readSiteRegistry();
-    const siteIndex = registryUpdate.sites.findIndex(record => record.id === site.id);
-    if (siteIndex !== -1) {
-      registryUpdate.sites[siteIndex] = {
-        ...registryUpdate.sites[siteIndex],
-        deploy: {
-          remoteUrl: safeRemoteUrl,
-          branch: safeBranch,
-          commitMessage: safeCommitMessage
-        },
-        updatedAt: new Date().toISOString()
-      };
-      registryUpdate.activeSiteId = site.id;
-      writeSiteRegistry(registryUpdate);
+    });
+    const safeRemoteUrl = validateRemoteUrl(deploy.remoteUrl);
+    const safeBranch = validateBranch(deploy.branch || (deploy.mode === 'source-repo' ? 'main' : DEFAULT_DEPLOY_SETTINGS.branch));
+    const safeCommitMessage = validateCommitMessage(deploy.commitMessage || DEFAULT_DEPLOY_SETTINGS.commitMessage);
+
+    logMsg(`Compiling "${site.record.name}" before deployment...`);
+    const compileResult = await publishSite({
+      site,
+      log,
+      logMsg: (msg) => logMsg(`SSG: ${msg}`)
+    });
+    if (!compileResult.success) {
+      throw new Error(compileResult.error || 'Static compilation failed.');
     }
+
+    if (deploy.mode === 'source-repo') {
+      const sourceResult = await commitSiteContentToGitHub(site, {
+        remoteUrl: safeRemoteUrl,
+        branch: safeBranch,
+        commitMessage: safeCommitMessage
+      }, logMsg);
+      return res.json({
+        success: true,
+        mode: deploy.mode,
+        ...sourceResult,
+        log
+      });
+    }
+
     logMsg(`Starting Git Deployment pipeline for "${site.record.name}" on branch "${safeBranch}"...`);
 
     // Ensure out directory exists
@@ -3007,7 +3270,7 @@ app.post('/api/deploy', async (req, res) => {
     // Using --force to guarantee hosting files replace whatever is currently in gh-pages
     await runCommand('git', ['push', 'origin', safeBranch, '--force'], site.outDir);
 
-    logMsg("Pushed to GitHub Pages successfully!");
+    logMsg("Pushed static branch successfully.");
     res.json({ success: true, log });
   } catch (err) {
     logMsg(`DEPLOYMENT PIPELINE CRASHED: ${err.message || err.stderr || JSON.stringify(err)}`);
