@@ -2551,17 +2551,45 @@ async function importSiteContentFromGitHub(site, deploy, logMsg) {
     throw err;
   }
 
-  fs.rmSync(site.contentDir, { recursive: true, force: true });
-  ensureSiteDirectories(site);
+  const importDir = fs.mkdtempSync(path.join(site.baseDir, '.quiremark-import-'));
+  const tempContentDir = path.join(importDir, 'content');
+  fs.mkdirSync(tempContentDir, { recursive: true });
 
-  for (const entry of contentEntries) {
-    const blob = await githubApi(`/repos/${owner}/${repo}/git/blobs/${entry.sha}`, { token });
-    const relativePath = entry.path.replace(/^content\//, '');
-    const targetPath = resolveInside(site.contentDir, relativePath);
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.writeFileSync(targetPath, Buffer.from(String(blob.content || '').replace(/\s+/g, ''), 'base64'));
+  try {
+    for (const entry of contentEntries) {
+      const blob = await githubApi(`/repos/${owner}/${repo}/git/blobs/${entry.sha}`, { token });
+      const relativePath = entry.path.replace(/^content\//, '');
+      const targetPath = resolveInside(tempContentDir, relativePath);
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.writeFileSync(targetPath, Buffer.from(String(blob.content || '').replace(/\s+/g, ''), 'base64'));
+    }
+
+    const backupDir = fs.mkdtempSync(path.join(site.baseDir, '.quiremark-content-backup-'));
+    const backupContentDir = path.join(backupDir, 'content');
+    let movedExistingContent = false;
+    try {
+      if (fs.existsSync(site.contentDir)) {
+        fs.renameSync(site.contentDir, backupContentDir);
+        movedExistingContent = true;
+      }
+      fs.renameSync(tempContentDir, site.contentDir);
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    } catch (err) {
+      if (movedExistingContent) {
+        fs.rmSync(site.contentDir, { recursive: true, force: true });
+        if (fs.existsSync(backupContentDir) && !fs.existsSync(site.contentDir)) {
+          fs.renameSync(backupContentDir, site.contentDir);
+        }
+      }
+      throw err;
+    } finally {
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    }
+  } finally {
+    fs.rmSync(importDir, { recursive: true, force: true });
   }
 
+  ensureSiteDirectories(site);
   logMsg(`Imported ${contentEntries.length} content file(s).`);
   return { imported: contentEntries.length };
 }
