@@ -56,9 +56,28 @@ PORT=3001
 ADMIN_PASSWORD=admin
 ADMIN_SESSION_TTL_MS=28800000
 PUBLIC_SITE_URL=https://example.com
+BLOGSYSTEM_DATA_DIR=/data
 ```
 
 Set `ADMIN_PASSWORD` before using the admin dashboard beyond local testing.
+
+`BLOGSYSTEM_DATA_DIR` is optional for local development. Set it on persistent hosts such as Railway when posts, websites, uploads, and compiled output should live outside the deployment image.
+
+## Railway Deployment
+
+This repository includes `railway.toml` so Railway builds the admin bundle with `npm run build`, starts the Express server with `npm start`, and checks `/api/health`.
+
+Recommended Railway variables:
+
+```bash
+ADMIN_PASSWORD=<strong-password>
+PUBLIC_SITE_URL=https://dev.smallweblab.com
+BLOGSYSTEM_DATA_DIR=/data
+```
+
+For a persistent multisite admin, add a Railway Volume mounted at `/data`. On first boot, BlogSystem seeds the volume from the bundled `content/` and `sites/` folders if the mounted folders are empty. Future admin edits, uploaded images, generated static output, and the multisite registry then remain on the volume across deployments.
+
+To use `dev.smallweblab.com`, add it as a custom domain on the Railway service under **Settings → Networking → Public Networking**. Railway will provide the exact DNS records to add at your DNS provider: a `CNAME` record for routing and a `TXT` record for ownership verification. Both are required before the domain routes successfully.
 
 Website workspaces are tracked in `sites/registry.json`. The built-in `main` website keeps using the existing `content/` and `out/` folders. New websites created from the admin use:
 

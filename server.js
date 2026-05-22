@@ -17,6 +17,8 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const configuredDataDir = process.env.BLOGSYSTEM_DATA_DIR || process.env.ZENITHPRESS_DATA_DIR || '';
+const DATA_DIR = configuredDataDir ? path.resolve(configuredDataDir) : __dirname;
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -637,12 +639,14 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Setup folder paths
-const CONTENT_DIR = path.join(__dirname, 'content');
+const REPO_CONTENT_DIR = path.join(__dirname, 'content');
+const REPO_SITES_DIR = path.join(__dirname, 'sites');
+const CONTENT_DIR = path.join(DATA_DIR, 'content');
 const POSTS_DIR = path.join(CONTENT_DIR, 'posts');
 const IMAGES_DIR = path.join(CONTENT_DIR, 'images');
 const TEMPLATES_DIR = path.join(__dirname, 'templates');
-const OUT_DIR = path.join(__dirname, 'out');
-const SITES_DIR = path.join(__dirname, 'sites');
+const OUT_DIR = path.join(DATA_DIR, 'out');
+const SITES_DIR = path.join(DATA_DIR, 'sites');
 const SITES_REGISTRY_FILE = path.join(SITES_DIR, 'registry.json');
 const MAIN_SITE_ID = 'main';
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -653,8 +657,22 @@ const COMMON_CONSENT_SCRIPT = path.join(TEMPLATES_DIR, 'consent.js');
 const COMMON_CONSENT_STYLE = path.join(TEMPLATES_DIR, 'consent.css');
 const FAVICON_SOURCE = path.join(PUBLIC_DIR, 'favicon.svg');
 
+function seedDirectoryIfEmpty(sourceDir, targetDir) {
+  if (path.resolve(sourceDir) === path.resolve(targetDir) || !fs.existsSync(sourceDir)) return;
+  const hasExistingData = fs.existsSync(targetDir) && fs.readdirSync(targetDir).length > 0;
+  if (hasExistingData) return;
+  fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+  fs.cpSync(sourceDir, targetDir, { recursive: true });
+}
+
+if (configuredDataDir) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  seedDirectoryIfEmpty(REPO_CONTENT_DIR, CONTENT_DIR);
+  seedDirectoryIfEmpty(REPO_SITES_DIR, SITES_DIR);
+}
+
 // Ensure necessary directories exist on startup
-[CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR, SITES_DIR].forEach(dir => {
+[DATA_DIR, CONTENT_DIR, POSTS_DIR, IMAGES_DIR, OUT_DIR, SITES_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -836,7 +854,7 @@ function getSiteContext(siteId = MAIN_SITE_ID) {
   if (id === MAIN_SITE_ID) {
     return {
       id,
-      baseDir: __dirname,
+      baseDir: DATA_DIR,
       contentDir: CONTENT_DIR,
       postsDir: POSTS_DIR,
       imagesDir: IMAGES_DIR,
@@ -2307,6 +2325,10 @@ function validateCommitMessage(message) {
 // ----------------------------------------------------
 // API ROUTES
 // ----------------------------------------------------
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 // Authentication endpoint
 app.post('/api/auth/login', (req, res) => {
